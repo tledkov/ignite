@@ -34,9 +34,6 @@ class CacheContinuousQueryEvent<K, V> extends CacheQueryEntryEvent<K, V> {
     /** */
     private final GridCacheContext cctx;
 
-    /** */
-    private IgniteInternalFuture<Boolean> filterFut;
-
     /** Entry. */
     @GridToStringExclude
     private final CacheContinuousQueryEntry e;
@@ -51,20 +48,6 @@ class CacheContinuousQueryEvent<K, V> extends CacheQueryEntryEvent<K, V> {
 
         this.cctx = cctx;
         this.e = e;
-    }
-
-    /**
-     * @return Filter future.
-     */
-    public IgniteInternalFuture<Boolean> getFilterFuture() {
-        return filterFut;
-    }
-
-    /**
-     * @param filterFut Filter future.
-     */
-    public void setFilterFut(IgniteInternalFuture<Boolean> filterFut) {
-        this.filterFut = filterFut;
     }
 
     /**

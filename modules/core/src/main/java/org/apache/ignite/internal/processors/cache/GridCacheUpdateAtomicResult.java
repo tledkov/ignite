@@ -17,10 +17,9 @@
 
 package org.apache.ignite.internal.processors.cache;
 
-import java.util.Map;
+import java.util.List;
 import javax.cache.processor.EntryProcessor;
-import org.apache.ignite.internal.IgniteInternalFuture;
-import org.apache.ignite.internal.processors.cache.query.continuous.CacheContinuousQueryListener;
+import org.apache.ignite.internal.processors.cache.query.continuous.CacheContinuousQueryClosure;
 import org.apache.ignite.internal.processors.cache.version.GridCacheVersion;
 import org.apache.ignite.internal.processors.cache.version.GridCacheVersionConflictContext;
 import org.apache.ignite.internal.util.tostring.GridToStringInclude;
@@ -63,11 +62,11 @@ public class GridCacheUpdateAtomicResult {
     /** */
     private final long updateCntr;
 
-    /** */
-    Map<CacheContinuousQueryListener, IgniteInternalFuture<Boolean>> conQryFltrs;
-
     /** Value computed by entry processor. */
     private IgniteBiTuple<Object, Exception> res;
+
+    /** Continuous query closures. */
+    private List<CacheContinuousQueryClosure> cntQryClsrs;
 
     /**
      * Constructor.
@@ -82,7 +81,6 @@ public class GridCacheUpdateAtomicResult {
      * @param conflictRes DR resolution result.
      * @param sndToDht Whether update should be propagated to DHT node.
      * @param updateCntr Partition update counter.
-     * @param conQryFltrs Continuous query
      */
     public GridCacheUpdateAtomicResult(boolean success,
         @Nullable CacheObject oldVal,
@@ -94,7 +92,7 @@ public class GridCacheUpdateAtomicResult {
         @Nullable GridCacheVersionConflictContext<?, ?> conflictRes,
         boolean sndToDht,
         long updateCntr,
-        Map<CacheContinuousQueryListener, IgniteInternalFuture<Boolean>> conQryFltrs
+        List<CacheContinuousQueryClosure> cntQryClsrs
     ) {
         this.success = success;
         this.oldVal = oldVal;
@@ -106,7 +104,7 @@ public class GridCacheUpdateAtomicResult {
         this.conflictRes = conflictRes;
         this.sndToDht = sndToDht;
         this.updateCntr = updateCntr;
-        this.conQryFltrs = conQryFltrs;
+        this.cntQryClsrs = cntQryClsrs;
     }
 
     /**
@@ -181,10 +179,17 @@ public class GridCacheUpdateAtomicResult {
     }
 
     /**
-     * @return Continuous query filter results.
+     * @param clsrs Closures.
      */
-    public Map<CacheContinuousQueryListener, IgniteInternalFuture<Boolean>> getFilterResults() {
-        return conQryFltrs;
+    private void continuousQueryClosures(List<CacheContinuousQueryClosure> clsrs) {
+        this.cntQryClsrs = clsrs;
+    }
+
+    /**
+     * @return Continuous query closures.
+     */
+    public List<CacheContinuousQueryClosure> continuousQueryClosures() {
+        return cntQryClsrs;
     }
 
     /** {@inheritDoc} */

@@ -33,6 +33,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import javax.cache.Cache;
 import javax.cache.configuration.Factory;
 import javax.cache.event.CacheEntryEvent;
+import javax.cache.event.CacheEntryListenerException;
 import javax.cache.event.CacheEntryUpdatedListener;
 import javax.cache.integration.CacheWriterException;
 import org.apache.ignite.Ignite;
@@ -308,6 +309,13 @@ public abstract class GridCacheContinuousQueryAbstractSelfTest extends GridCommo
 
                     latch.countDown();
                 }
+            }
+        });
+
+        qry.setRemoteFilter(new CacheEntryEventSerializableFilter<Integer, Integer>() {
+            @Override public boolean evaluate(CacheEntryEvent<? extends Integer, ? extends Integer> event)
+                throws CacheEntryListenerException {
+                return true;
             }
         });
 

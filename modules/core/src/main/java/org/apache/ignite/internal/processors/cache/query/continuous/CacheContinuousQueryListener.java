@@ -37,17 +37,10 @@ public interface CacheContinuousQueryListener<K, V> {
      * @param evt Event
      * @param primary Primary flag.
      * @param recordIgniteEvt Whether to record event.
+     * @param fireEvent Immediately fired events.
      */
-    public void onEntryUpdated(CacheContinuousQueryEvent<K, V> evt, boolean primary, boolean recordIgniteEvt);
-
-    /**
-     * Filters event.
-     *
-     * @param evt Event.
-     * @return {@code True} if the evaluation passes, otherwise false.
-     *   The effect of returning true is that listener will be invoked.
-     */
-    public IgniteInternalFuture<Boolean> filter(CacheContinuousQueryEvent<K, V> evt);
+    public CacheContinuousQueryClosure onEntryUpdated(CacheContinuousQueryEvent<K, V> evt, boolean primary,
+        boolean recordIgniteEvt, boolean fireEvent);
 
     /**
      * Listener unregistered callback.
@@ -79,7 +72,8 @@ public interface CacheContinuousQueryListener<K, V> {
      * @param topVer Topology version.
      * @param primary Primary
      */
-    public void skipUpdateEvent(CacheContinuousQueryEvent<K, V> evt, AffinityTopologyVersion topVer, boolean primary);
+    public CacheContinuousQueryClosure skipUpdateEvent(CacheContinuousQueryEvent<K, V> evt,
+        AffinityTopologyVersion topVer, boolean primary, boolean fireEvnt);
 
     /**
      * @param part Partition.

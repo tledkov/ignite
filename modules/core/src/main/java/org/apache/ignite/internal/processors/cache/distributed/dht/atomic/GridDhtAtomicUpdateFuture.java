@@ -20,6 +20,7 @@ package org.apache.ignite.internal.processors.cache.distributed.dht.atomic;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicReference;
@@ -37,7 +38,7 @@ import org.apache.ignite.internal.processors.cache.GridCacheContext;
 import org.apache.ignite.internal.processors.cache.GridCacheEntryRemovedException;
 import org.apache.ignite.internal.processors.cache.KeyCacheObject;
 import org.apache.ignite.internal.processors.cache.distributed.dht.GridDhtCacheEntry;
-import org.apache.ignite.internal.processors.cache.query.continuous.CacheContinuousQueryListener;
+import org.apache.ignite.internal.processors.cache.query.continuous.CacheContinuousQueryClosure;
 import org.apache.ignite.internal.processors.cache.version.GridCacheVersion;
 import org.apache.ignite.internal.util.future.GridFutureAdapter;
 import org.apache.ignite.internal.util.tostring.GridToStringExclude;
@@ -103,8 +104,8 @@ public class GridDhtAtomicUpdateFuture extends GridFutureAdapter<Void>
     /** Response count. */
     private volatile int resCnt;
 
-    /** */
-    private Map<UUID, CacheContinuousQueryListener> lsnrs;
+    /** Continuous query closures. */
+    private List<CacheContinuousQueryClosure> contQryClsrs;
 
     /**
      * @param cctx Cache context.
@@ -136,13 +137,6 @@ public class GridDhtAtomicUpdateFuture extends GridFutureAdapter<Void>
         mappings = U.newHashMap(updateReq.keys().size());
 
         waitForExchange = !(updateReq.topologyLocked() || (updateReq.fastMap() && !updateReq.clientRequest()));
-    }
-
-    /**
-     * @param lsnrs Continuous query listeners.
-     */
-    void listeners(@Nullable Map<UUID, CacheContinuousQueryListener> lsnrs) {
-        this.lsnrs = lsnrs;
     }
 
     /** {@inheritDoc} */
@@ -227,6 +221,7 @@ public class GridDhtAtomicUpdateFuture extends GridFutureAdapter<Void>
      * @param addPrevVal If {@code true} sends previous value to backups.
      * @param prevVal Previous value.
      * @param updateCntr Partition update counter.
+     * @param clsrs
      */
     public void addWriteEntry(GridDhtCacheEntry entry,
         @Nullable CacheObject val,
@@ -236,8 +231,7 @@ public class GridDhtAtomicUpdateFuture extends GridFutureAdapter<Void>
         @Nullable GridCacheVersion conflictVer,
         boolean addPrevVal,
         @Nullable CacheObject prevVal,
-        long updateCntr,
-        @Nullable Map<CacheContinuousQueryListener, IgniteInternalFuture<Boolean>> filterRes) {
+        long updateCntr, List<CacheContinuousQueryClosure> clsrs) {
         AffinityTopologyVersion topVer = updateReq.topologyVersion();
 
         Collection<ClusterNode> dhtNodes = cctx.dht().topology().nodes(entry.partition(), topVer);
@@ -248,6 +242,13 @@ public class GridDhtAtomicUpdateFuture extends GridFutureAdapter<Void>
         CacheWriteSynchronizationMode syncMode = updateReq.writeSynchronizationMode();
 
         keys.add(entry.key());
+
+        if (clsrs != null) {
+            if (contQryClsrs == null)
+                contQryClsrs = new ArrayList<>(keys.size());
+
+            contQryClsrs.addAll(clsrs);
+        }
 
         for (ClusterNode node : dhtNodes) {
             UUID nodeId = node.id();
@@ -282,30 +283,7 @@ public class GridDhtAtomicUpdateFuture extends GridFutureAdapter<Void>
                     addPrevVal,
                     entry.partition(),
                     prevVal,
-                    updateCntr,
-                    filterRes,
-                    lsnrs != null);
-            }
-            else if (lsnrs != null && dhtNodes.size() == 1) {
-                try {
-                    cctx.continuousQueries().onEntryUpdated(
-                        lsnrs,
-                        entry.key(),
-                        val,
-                        prevVal,
-                        entry.key().internal() || !cctx.userCache(),
-                        entry.partition(),
-                        true,
-                        false,
-                        updateCntr,
-                        updateReq.topologyVersion(),
-                        filterRes
-                    );
-                }
-                catch (IgniteCheckedException e) {
-                    U.warn(log, "Failed to send continuous query message. [key=" + entry.key() + ", newVal="
-                        + val + ", err=" + e + "]");
-                }
+                    updateCntr);
             }
         }
     }
@@ -376,72 +354,17 @@ public class GridDhtAtomicUpdateFuture extends GridFutureAdapter<Void>
             cctx.mvcc().removeAtomicFuture(version());
 
             if (err != null) {
-                if (!mappings.isEmpty() && lsnrs != null) {
-                    Collection<KeyCacheObject> hndKeys = new ArrayList<>(keys.size());
+                for (KeyCacheObject key : keys)
+                    updateRes.addFailedKey(key, err);
 
-                    exit: for (GridDhtAtomicUpdateRequest req : mappings.values()) {
-                        for (int i = 0; i < req.size(); i++) {
-                            KeyCacheObject key = req.key(i);
-
-                            if (!hndKeys.contains(key)) {
-                                updateRes.addFailedKey(key, err);
-
-                                cctx.continuousQueries().skipUpdateEvent(
-                                    lsnrs,
-                                    key,
-                                    req.partitionId(i),
-                                    req.updateCounter(i),
-                                    updateReq.topologyVersion());
-
-                                hndKeys.add(key);
-
-                                if (hndKeys.size() == keys.size())
-                                    break exit;
-                            }
-                        }
-                    }
-                }
-                else
-                    for (KeyCacheObject key : keys)
-                        updateRes.addFailedKey(key, err);
+                if (contQryClsrs != null)
+                    for (CacheContinuousQueryClosure clsr : contQryClsrs)
+                        clsr.skipEvent();
             }
             else {
-                if (lsnrs != null) {
-                    Collection<KeyCacheObject> hndKeys = new ArrayList<>(keys.size());
-
-                    exit: for (GridDhtAtomicUpdateRequest req : mappings.values()) {
-                        for (int i = 0; i < req.size(); i++) {
-                            KeyCacheObject key = req.key(i);
-
-                            if (!hndKeys.contains(key)) {
-                                try {
-                                    cctx.continuousQueries().onEntryUpdated(
-                                        lsnrs,
-                                        key,
-                                        req.value(i),
-                                        req.localPreviousValue(i),
-                                        key.internal() || !cctx.userCache(),
-                                        req.partitionId(i),
-                                        true,
-                                        false,
-                                        req.updateCounter(i),
-                                        updateReq.topologyVersion(),
-                                        req.filterResult(i));
-                                }
-                                catch (IgniteCheckedException e) {
-                                    U.warn(log, "Failed to send continuous query message. [key=" + key +
-                                        ", newVal=" + req.value(i) +
-                                        ", err=" + e + "]");
-                                }
-
-                                hndKeys.add(key);
-
-                                if (hndKeys.size() == keys.size())
-                                    break exit;
-                            }
-                        }
-                    }
-                }
+                if (contQryClsrs != null)
+                    for (CacheContinuousQueryClosure clsr : contQryClsrs)
+                        clsr.onEntryUpdate();
             }
 
             if (updateReq.writeSynchronizationMode() == FULL_SYNC)

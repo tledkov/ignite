@@ -20,8 +20,10 @@ package org.apache.ignite.internal.processors.cache;
 import java.nio.ByteBuffer;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicReference;
 import javax.cache.Cache;
 import javax.cache.expiry.ExpiryPolicy;
@@ -46,6 +48,8 @@ import org.apache.ignite.internal.processors.cache.extras.GridCacheMvccEntryExtr
 import org.apache.ignite.internal.processors.cache.extras.GridCacheObsoleteEntryExtras;
 import org.apache.ignite.internal.processors.cache.extras.GridCacheTtlEntryExtras;
 import org.apache.ignite.internal.processors.cache.query.GridCacheQueryManager;
+import org.apache.ignite.internal.processors.cache.query.continuous.CacheContinuousQueryClosure;
+import org.apache.ignite.internal.processors.cache.query.continuous.CacheContinuousQueryHandler;
 import org.apache.ignite.internal.processors.cache.query.continuous.CacheContinuousQueryListener;
 import org.apache.ignite.internal.processors.cache.transactions.IgniteInternalTx;
 import org.apache.ignite.internal.processors.cache.transactions.IgniteTxEntry;
@@ -1237,6 +1241,7 @@ public abstract class GridCacheMapEntry extends GridMetadataAwareAdapter impleme
                     internal,
                     partition(),
                     tx.local(),
+                    true,
                     false,
                     updateCntr0,
                     topVer);
@@ -1434,6 +1439,7 @@ public abstract class GridCacheMapEntry extends GridMetadataAwareAdapter impleme
                     internal,
                     partition(),
                     tx.local(),
+                    true,
                     false,
                     updateCntr0,
                     topVer);
@@ -1808,6 +1814,7 @@ public abstract class GridCacheMapEntry extends GridMetadataAwareAdapter impleme
                     internal,
                     partition(),
                     true,
+                    true,
                     false,
                     updateCntr,
                     AffinityTopologyVersion.NONE);
@@ -1887,7 +1894,7 @@ public abstract class GridCacheMapEntry extends GridMetadataAwareAdapter impleme
 
         Long updateCntr0 = null;
 
-        Map<CacheContinuousQueryListener, IgniteInternalFuture<Boolean>> filterRes = null;
+        List<CacheContinuousQueryClosure> clsrs = null;
 
         synchronized (this) {
             boolean needVal = intercept || retval || op == GridCacheOperation.TRANSFORM || !F.isEmptyOrNulls(filter);
@@ -2082,6 +2089,7 @@ public abstract class GridCacheMapEntry extends GridMetadataAwareAdapter impleme
                                 isInternal() || !context().userCache(),
                                 partition(),
                                 primary,
+                                true,
                                 false,
                                 updateCntr0,
                                 topVer);
@@ -2512,8 +2520,8 @@ public abstract class GridCacheMapEntry extends GridMetadataAwareAdapter impleme
                     evtOldVal = cctx.toCacheObject(cctx.unwrapTemporary(updated0));
                 }
 
-                filterRes = cctx.continuousQueries().filterEntry(lsnrs, key, evtVal, evtOldVal, partition(), false,
-                    updateCntr0, topVer);
+                clsrs = cctx.continuousQueries().onEntryUpdated(lsnrs, key, evtVal, evtOldVal, internal,
+                    partition(), primary, false, false, updateCntr0, topVer);
             }
 
             cctx.dataStructures().onEntryUpdated(key, op == GridCacheOperation.DELETE, keepBinary);
@@ -2542,7 +2550,7 @@ public abstract class GridCacheMapEntry extends GridMetadataAwareAdapter impleme
             conflictCtx,
             true,
             updateCntr0 == null ? 0 : updateCntr0,
-            filterRes);
+            clsrs);
     }
 
     /**
@@ -3315,6 +3323,7 @@ public abstract class GridCacheMapEntry extends GridMetadataAwareAdapter impleme
                         null,
                         this.isInternal() || !this.context().userCache(),
                         this.partition(),
+                        true,
                         true,
                         preload,
                         updateCntr,

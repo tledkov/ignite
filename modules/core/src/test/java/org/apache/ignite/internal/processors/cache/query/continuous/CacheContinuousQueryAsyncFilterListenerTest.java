@@ -32,7 +32,7 @@ import org.apache.ignite.cache.CacheEntryEventSerializableFilter;
 import org.apache.ignite.cache.CacheMemoryMode;
 import org.apache.ignite.cache.CacheMode;
 import org.apache.ignite.cache.affinity.Affinity;
-import org.apache.ignite.cache.query.CacheAsyncCallback;
+import org.apache.ignite.lang.IgniteAsyncCallback;
 import org.apache.ignite.cache.query.ContinuousQuery;
 import org.apache.ignite.cache.query.QueryCursor;
 import org.apache.ignite.configuration.CacheConfiguration;
@@ -590,7 +590,8 @@ public class CacheContinuousQueryAsyncFilterListenerTest extends GridCommonAbstr
     /**
      *
      */
-    private static class CacheTestRemoteFilterAsync extends CacheTestRemoteFilter implements CacheAsyncCallback {
+    @IgniteAsyncCallback
+    private static class CacheTestRemoteFilterAsync extends CacheTestRemoteFilter {
         /**
          * @param clsr Closure.
          */
@@ -632,7 +633,8 @@ public class CacheContinuousQueryAsyncFilterListenerTest extends GridCommonAbstr
     /**
      *
      */
-    private static class CacheInvokeListenerAsync extends CacheInvokeListener implements CacheAsyncCallback {
+    @IgniteAsyncCallback
+    private static class CacheInvokeListenerAsync extends CacheInvokeListener {
         /**
          * @param clsr Closure.
          */

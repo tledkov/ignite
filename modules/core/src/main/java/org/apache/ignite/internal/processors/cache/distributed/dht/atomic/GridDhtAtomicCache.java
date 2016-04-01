@@ -76,6 +76,7 @@ import org.apache.ignite.internal.processors.cache.distributed.near.GridNearSing
 import org.apache.ignite.internal.processors.cache.distributed.near.GridNearSingleGetResponse;
 import org.apache.ignite.internal.processors.cache.dr.GridCacheDrExpirationInfo;
 import org.apache.ignite.internal.processors.cache.dr.GridCacheDrInfo;
+import org.apache.ignite.internal.processors.cache.query.continuous.CacheContinuousQueryClosure;
 import org.apache.ignite.internal.processors.cache.query.continuous.CacheContinuousQueryListener;
 import org.apache.ignite.internal.processors.cache.transactions.IgniteTxLocalEx;
 import org.apache.ignite.internal.processors.cache.version.GridCacheVersion;
@@ -2077,8 +2078,6 @@ public class GridDhtAtomicCache<K, V> extends GridDhtCacheAdapter<K, V> {
                 }
 
                 if (dhtFut != null) {
-                    dhtFut.listeners(lsnrs);
-
                     if (updRes.sendToDht()) { // Send to backups even in case of remove-remove scenarios.
                         GridCacheVersionConflictContext<?, ?> conflictCtx = updRes.conflictResolveResult();
 
@@ -2099,7 +2098,7 @@ public class GridDhtAtomicCache<K, V> extends GridDhtCacheAdapter<K, V> {
                                 sndPrevVal,
                                 updRes.oldValue(),
                                 updRes.updateCounter(),
-                                updRes.getFilterResults());
+                                updRes.continuousQueryClosures());
                         }
 
                         if (!F.isEmpty(filteredReaders))
@@ -2116,19 +2115,9 @@ public class GridDhtAtomicCache<K, V> extends GridDhtCacheAdapter<K, V> {
                                 "[entry=" + entry + ", filter=" + Arrays.toString(req.filter()) + ']');
                     }
                 }
-                else if (lsnrs != null && updRes.updateCounter() != 0) {
-                    ctx.continuousQueries().onEntryUpdated(
-                        lsnrs,
-                        entry.key(),
-                        updRes.newValue(),
-                        updRes.oldValue(),
-                        internal,
-                        entry.partition(),
-                        primary,
-                        false,
-                        updRes.updateCounter(),
-                        topVer,
-                        updRes.getFilterResults());
+                else if (lsnrs != null && updRes.continuousQueryClosures() != null) {
+                    for (CacheContinuousQueryClosure clsr : updRes.continuousQueryClosures())
+                        clsr.onEntryUpdate();
                 }
 
                 if (hasNear) {
@@ -2405,12 +2394,10 @@ public class GridDhtAtomicCache<K, V> extends GridDhtCacheAdapter<K, V> {
                     }
 
                     if (dhtFut != null) {
-                        dhtFut.listeners(lsnrs);
-
                         EntryProcessor<Object, Object, Object> entryProcessor =
                             entryProcessorMap == null ? null : entryProcessorMap.get(entry.key());
 
-                        if (!batchRes.readersOnly())
+                        if (!batchRes.readersOnly()) {
                             dhtFut.addWriteEntry(entry,
                                 writeVal,
                                 entryProcessor,
@@ -2420,7 +2407,8 @@ public class GridDhtAtomicCache<K, V> extends GridDhtCacheAdapter<K, V> {
                                 sndPrevVal,
                                 updRes.oldValue(),
                                 updRes.updateCounter(),
-                                updRes.getFilterResults());
+                                updRes.continuousQueryClosures());
+                        }
 
                         if (!F.isEmpty(filteredReaders))
                             dhtFut.addNearWriteEntries(filteredReaders,
@@ -2430,18 +2418,9 @@ public class GridDhtAtomicCache<K, V> extends GridDhtCacheAdapter<K, V> {
                                 updRes.newTtl(),
                                 CU.EXPIRE_TIME_CALCULATE);
                     }
-                    else if (lsnrs != null && updRes.updateCounter() != 0) {
-                        ctx.continuousQueries().onEntryUpdated(
-                            lsnrs,
-                            entry.key(),
-                            updRes.newValue(),
-                            updRes.oldValue(),
-                            entry.isInternal() || !context().userCache(),
-                            entry.partition(),
-                            primary,
-                            false,
-                            updRes.updateCounter(),
-                            topVer);
+                    else if (lsnrs != null && updRes.continuousQueryClosures() != null) {
+                        for (CacheContinuousQueryClosure clsr : updRes.continuousQueryClosures())
+                            clsr.onEntryUpdate();
                     }
 
                     if (hasNear) {
@@ -2884,19 +2863,9 @@ public class GridDhtAtomicCache<K, V> extends GridDhtCacheAdapter<K, V> {
                         if (updRes.removeVersion() != null)
                             ctx.onDeferredDelete(entry, updRes.removeVersion());
 
-                        if (lsnrs != null && updRes.updateCounter() != 0) {
-                            ctx.continuousQueries().onEntryUpdated(
-                                lsnrs,
-                                entry.key(),
-                                updRes.newValue(),
-                                updRes.oldValue(),
-                                internal,
-                                entry.partition(),
-                                false,
-                                false,
-                                updRes.updateCounter(),
-                                req.topologyVersion(),
-                                updRes.getFilterResults());
+                        if (lsnrs != null && updRes.continuousQueryClosures() != null) {
+                            for (CacheContinuousQueryClosure clsr : updRes.continuousQueryClosures())
+                                clsr.onEntryUpdate();
                         }
 
                         entry.onUnlock();

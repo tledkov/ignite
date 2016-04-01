@@ -162,10 +162,6 @@ public class GridDhtAtomicUpdateRequest extends GridCacheMessage implements Grid
     @GridDirectTransient
     private List<CacheObject> locPrevVals;
 
-    /**  */
-    @GridDirectTransient
-    private List<Map<CacheContinuousQueryListener, IgniteInternalFuture<Boolean>>> filterRes;
-
     /** Keep binary flag. */
     private boolean keepBinary;
 
@@ -249,8 +245,6 @@ public class GridDhtAtomicUpdateRequest extends GridCacheMessage implements Grid
      * @param partId Partition.
      * @param prevVal Previous value.
      * @param updateCntr Update counter.
-     * @param filterRes Filter results.
-     * @param storeLocPrevVal If {@code true} stores previous value.
      */
     public void addWriteValue(KeyCacheObject key,
         @Nullable CacheObject val,
@@ -261,19 +255,10 @@ public class GridDhtAtomicUpdateRequest extends GridCacheMessage implements Grid
         boolean addPrevVal,
         int partId,
         @Nullable CacheObject prevVal,
-        @Nullable Long updateCntr,
-        @Nullable Map<CacheContinuousQueryListener, IgniteInternalFuture<Boolean>> filterRes,
-        boolean storeLocPrevVal) {
+        @Nullable Long updateCntr) {
         keys.add(key);
 
         partIds.add(partId);
-
-        if (storeLocPrevVal) {
-            if (locPrevVals == null)
-                locPrevVals = new ArrayList<>();
-
-            locPrevVals.add(prevVal);
-        }
 
         if (forceTransformBackups) {
             assert entryProcessor != null;
@@ -295,13 +280,6 @@ public class GridDhtAtomicUpdateRequest extends GridCacheMessage implements Grid
                 updateCntrs = new GridLongList();
 
             updateCntrs.add(updateCntr);
-        }
-
-        if (filterRes != null) {
-            if (this.filterRes == null)
-                this.filterRes = new ArrayList<>();
-
-            this.filterRes.add(filterRes);
         }
 
         // In case there is no conflict, do not create the list.
@@ -499,17 +477,6 @@ public class GridDhtAtomicUpdateRequest extends GridCacheMessage implements Grid
     public Long updateCounter(int idx) {
         if (updateCntrs != null && idx < updateCntrs.size())
             return updateCntrs.get(idx);
-
-        return null;
-    }
-
-    /**
-     * @param idx Index.
-     * @return Filter result future.
-     */
-    public Map<CacheContinuousQueryListener, IgniteInternalFuture<Boolean>> filterResult(int idx) {
-        if (filterRes != null && idx < filterRes.size())
-            return filterRes.get(idx);
 
         return null;
     }

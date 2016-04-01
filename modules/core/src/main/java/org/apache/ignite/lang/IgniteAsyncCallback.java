@@ -15,22 +15,25 @@
  * limitations under the License.
  */
 
-package org.apache.ignite.cache.query;
+package org.apache.ignite.lang;
 
-import javax.cache.configuration.Factory;
+import java.lang.annotation.ElementType;
+import java.lang.annotation.Retention;
+import java.lang.annotation.RetentionPolicy;
+import java.lang.annotation.Target;
 import javax.cache.event.CacheEntryEventFilter;
 import javax.cache.event.CacheEntryListener;
 import org.apache.ignite.configuration.IgniteConfiguration;
 
 /**
- * Marker interface. If {@link CacheEntryEventFilter filter} or {@link CacheEntryListener}
- * implementations extend this interface then they will be executing on a separate thread pool. It allows
+ * If {@link CacheEntryEventFilter filter} or {@link CacheEntryListener}
+ * annotated this annotation then they will be executing on a separate thread pool. It allows
  * to use cache API in a callbacks.
  * <p>
- * Thread pool which will be used for it can be configured by
- * {@link IgniteConfiguration#setContinuousQueryPoolSize(int)}
- *
- * @see ContinuousQuery#setRemoteFilterFactory(Factory)
+ * Different implementations can use different thread pools. For example continuous query will use continuous query
+ * thread poll which can be configured by {@link IgniteConfiguration#setContinuousQueryPoolSize(int)}
  */
-public interface CacheAsyncCallback {
+@Retention(RetentionPolicy.RUNTIME)
+@Target(ElementType.TYPE)
+public @interface IgniteAsyncCallback {
 }
