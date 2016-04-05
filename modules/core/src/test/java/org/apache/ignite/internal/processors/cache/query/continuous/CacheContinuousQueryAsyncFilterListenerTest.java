@@ -18,20 +18,28 @@
 package org.apache.ignite.internal.processors.cache.query.continuous;
 
 import java.io.Serializable;
+import java.util.concurrent.Callable;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.TimeUnit;
 import javax.cache.configuration.FactoryBuilder;
 import javax.cache.event.CacheEntryEvent;
 import javax.cache.event.CacheEntryListenerException;
 import javax.cache.event.CacheEntryUpdatedListener;
+import javax.cache.processor.EntryProcessorException;
+import javax.cache.processor.MutableEntry;
 import org.apache.ignite.Ignite;
 import org.apache.ignite.IgniteCache;
 import org.apache.ignite.IgniteException;
 import org.apache.ignite.cache.CacheAtomicityMode;
 import org.apache.ignite.cache.CacheEntryEventSerializableFilter;
+import org.apache.ignite.cache.CacheEntryProcessor;
 import org.apache.ignite.cache.CacheMemoryMode;
 import org.apache.ignite.cache.CacheMode;
 import org.apache.ignite.cache.affinity.Affinity;
+import org.apache.ignite.internal.IgniteFutureTimeoutCheckedException;
+import org.apache.ignite.internal.IgniteInternalFuture;
+import org.apache.ignite.internal.util.typedef.CI2;
 import org.apache.ignite.lang.IgniteAsyncCallback;
 import org.apache.ignite.cache.query.ContinuousQuery;
 import org.apache.ignite.cache.query.QueryCursor;
@@ -46,6 +54,7 @@ import org.apache.ignite.spi.discovery.tcp.TcpDiscoverySpi;
 import org.apache.ignite.spi.discovery.tcp.ipfinder.TcpDiscoveryIpFinder;
 import org.apache.ignite.spi.discovery.tcp.ipfinder.vm.TcpDiscoveryVmIpFinder;
 import org.apache.ignite.spi.eventstorage.memory.MemoryEventStorageSpi;
+import org.apache.ignite.testframework.GridTestUtils;
 import org.apache.ignite.testframework.junits.common.GridCommonAbstractTest;
 import org.apache.ignite.transactions.Transaction;
 
@@ -350,20 +359,27 @@ public class CacheContinuousQueryAsyncFilterListenerTest extends GridCommonAbstr
     public void testNonDeadLockInListener(CacheConfiguration ccfg,
         final boolean asyncFilter,
         boolean asyncListener) throws Exception {
-        final IgniteCache cache = ignite(0).createCache(ccfg);
+        ignite(0).createCache(ccfg);
+
+        ThreadLocalRandom rnd = ThreadLocalRandom.current();
 
         try {
-            final QueryTestKey key = affinityKey(cache);
-
-            final QueryTestValue val0 = new QueryTestValue(1);
-            final QueryTestValue newVal = new QueryTestValue(2);
-
             for (int i = 0; i < ITERATION_CNT; i++) {
                 log.info("Start iteration: " + i);
+
+                int nodeIdx = i % NODES;
+
+                final IgniteCache cache = grid(nodeIdx).cache(ccfg.getName());
+
+                final QueryTestKey key = NODES - 1 != nodeIdx ? affinityKey(cache) : new QueryTestKey(1);
+
+                final QueryTestValue val0 = new QueryTestValue(1);
+                final QueryTestValue newVal = new QueryTestValue(2);
 
                 ContinuousQuery<QueryTestKey, QueryTestValue> conQry = new ContinuousQuery<>();
 
                 final CountDownLatch latch = new CountDownLatch(1);
+                final CountDownLatch evtFromLsnrLatch = new CountDownLatch(1);
 
                 IgniteBiInClosure<Ignite, CacheEntryEvent<? extends QueryTestKey, ? extends QueryTestValue>> fltrClsr =
                     new IgniteBiInClosure<Ignite, CacheEntryEvent<? extends QueryTestKey, ? extends QueryTestValue>>() {
@@ -381,41 +397,48 @@ public class CacheContinuousQueryAsyncFilterListenerTest extends GridCommonAbstr
 
                 IgniteBiInClosure<Ignite, CacheEntryEvent<? extends QueryTestKey, ? extends QueryTestValue>> lsnrClsr =
                     new IgniteBiInClosure<Ignite, CacheEntryEvent<? extends QueryTestKey, ? extends QueryTestValue>>() {
-                    @Override public void apply(Ignite ignite, CacheEntryEvent<? extends QueryTestKey,
-                        ? extends QueryTestValue> e) {
-                        IgniteCache<Object, Object> cache0 = ignite.cache(cache.getName());
+                        @Override public void apply(Ignite ignite, CacheEntryEvent<? extends QueryTestKey,
+                            ? extends QueryTestValue> e) {
+                            IgniteCache<Object, Object> cache0 = ignite.cache(cache.getName());
 
-                        QueryTestValue val = e.getValue();
+                            QueryTestValue val = e.getValue();
 
-                        if (val == null || !val.equals(new QueryTestValue(1)))
-                            return;
+                            if (val == null)
+                                return;
+                            else if (val.equals(newVal)) {
+                                evtFromLsnrLatch.countDown();
 
-                        Transaction tx = null;
+                                return;
+                            }
+                            else if (!val.equals(val0))
+                                return;
 
-                        try {
-                            if (cache0.getConfiguration(CacheConfiguration.class).getAtomicityMode() == TRANSACTIONAL)
-                                tx = ignite.transactions().txStart(PESSIMISTIC, REPEATABLE_READ);
+                            Transaction tx = null;
 
-                            assertEquals(val, val0);
+                            try {
+                                if (cache0.getConfiguration(CacheConfiguration.class).getAtomicityMode() == TRANSACTIONAL)
+                                    tx = ignite.transactions().txStart(PESSIMISTIC, REPEATABLE_READ);
 
-                            cache0.put(key, newVal);
+                                assertEquals(val, val0);
 
-                            if (tx != null)
-                                tx.commit();
+                                cache0.put(key, newVal);
 
-                            latch.countDown();
+                                if (tx != null)
+                                    tx.commit();
+
+                                latch.countDown();
+                            }
+                            catch (Exception exp) {
+                                log.error("Failed: ", exp);
+
+                                throw new IgniteException(exp);
+                            }
+                            finally {
+                                if (tx != null)
+                                    tx.close();
+                            }
                         }
-                        catch (Exception exp) {
-                            log.error("Failed: ", exp);
-
-                            throw new IgniteException(exp);
-                        }
-                        finally {
-                            if (tx != null)
-                                tx.close();
-                        }
-                    }
-                };
+                    };
 
                 if (asyncListener)
                     conQry.setLocalListener(new CacheInvokeListenerAsync(lsnrClsr));
@@ -428,11 +451,23 @@ public class CacheContinuousQueryAsyncFilterListenerTest extends GridCommonAbstr
                     conQry.setRemoteFilterFactory(FactoryBuilder.factoryOf(new CacheTestRemoteFilter(fltrClsr)));
 
                 try (QueryCursor qry = cache.query(conQry)) {
-                    cache.put(key, val0);
+                    if (rnd.nextBoolean())
+                        cache.put(key, val0);
+                    else
+                        cache.invoke(key, new CacheEntryProcessor() {
+                            @Override public Object process(MutableEntry entry, Object... arguments)
+                                throws EntryProcessorException {
+                                entry.setValue(val0);
 
-                    assert U.await(latch, 3, SECONDS) : "Failed to waiting event.";
+                                return null;
+                            }
+                        });
+
+                    assertTrue("Failed to waiting event.", U.await(latch, 3, SECONDS));
 
                     assertEquals(cache.get(key), new QueryTestValue(2));
+
+                    assertTrue("Failed to waiting event from listener.", U.await(latch, 3, SECONDS));
                 }
 
                 log.info("Iteration finished: " + i);
@@ -444,77 +479,270 @@ public class CacheContinuousQueryAsyncFilterListenerTest extends GridCommonAbstr
     }
 
     /**
+     * @throws Exception If failed.
+     */
+    public void testDeadLockInListenerAtomic() throws Exception {
+        testDeadLockInListener(cacheConfiguration(PARTITIONED, 2, ATOMIC, ONHEAP_TIERED));
+    }
+
+    /**
+     * @param ccfg Cache configuration.
+     * @throws Exception If failed.
+     */
+    private void testDeadLockInListener(CacheConfiguration ccfg) throws Exception {
+        ignite(0).createCache(ccfg);
+
+        final IgniteCache cache = grid(0).cache(ccfg.getName());
+
+        final QueryTestKey key = affinityKey(cache);
+
+        final QueryTestValue val0 = new QueryTestValue(1);
+        final QueryTestValue newVal = new QueryTestValue(2);
+
+        ContinuousQuery<QueryTestKey, QueryTestValue> conQry = new ContinuousQuery<>();
+
+        final CountDownLatch latch = new CountDownLatch(1);
+
+        IgniteBiInClosure<Ignite, CacheEntryEvent<? extends QueryTestKey, ? extends QueryTestValue>> lsnrClsr =
+            new IgniteBiInClosure<Ignite, CacheEntryEvent<? extends QueryTestKey, ? extends QueryTestValue>>() {
+                @Override public void apply(Ignite ignite, CacheEntryEvent<? extends QueryTestKey,
+                    ? extends QueryTestValue> e) {
+                    IgniteCache<Object, Object> cache0 = ignite.cache(cache.getName());
+
+                    QueryTestValue val = e.getValue();
+
+                    if (val == null || !val.equals(val0))
+                        return;
+
+                    Transaction tx = null;
+
+                    try {
+                        if (cache0.getConfiguration(CacheConfiguration.class).getAtomicityMode() == TRANSACTIONAL)
+                            tx = ignite.transactions().txStart(PESSIMISTIC, REPEATABLE_READ);
+
+                        assertEquals(val, val0);
+
+                        latch.countDown();
+
+                        cache0.put(key, newVal);
+
+                        if (tx != null)
+                            tx.commit();
+                    }
+                    catch (Exception exp) {
+                        log.error("Failed: ", exp);
+
+                        throw new IgniteException(exp);
+                    }
+                    finally {
+                        if (tx != null)
+                            tx.close();
+                    }
+                }
+            };
+
+        conQry.setLocalListener(new CacheInvokeListener(lsnrClsr));
+
+        try (QueryCursor qry = cache.query(conQry)) {
+            GridTestUtils.assertThrows(log, new Callable<Object>() {
+                @Override public Object call() throws Exception {
+                    IgniteInternalFuture<Void> f = GridTestUtils.runAsync(new Callable<Void>() {
+                        @Override public Void call() throws Exception {
+                            cache.put(key, val0);
+
+                            return null;
+                        }
+                    });
+
+                    f.get(1, SECONDS);
+
+                    return null;
+                }
+            }, IgniteFutureTimeoutCheckedException.class, null);
+
+            assertTrue("Failed. Deadlock early than put happened.", U.await(latch, 3, SECONDS));
+        }
+    }
+
+    /**
+     * @throws Exception If failed.
+     */
+    public void testDeadLockInFilterAtomic() throws Exception {
+        testDeadLockInFilter(cacheConfiguration(PARTITIONED, 2, ATOMIC, ONHEAP_TIERED));
+    }
+
+    /**
+     * @param ccfg Cache configuration.
+     * @throws Exception If failed.
+     */
+    private void testDeadLockInFilter(CacheConfiguration ccfg) throws Exception {
+        ignite(0).createCache(ccfg);
+
+        final IgniteCache cache = grid(0).cache(ccfg.getName());
+
+        final QueryTestKey key = affinityKey(cache);
+
+        final QueryTestValue val0 = new QueryTestValue(1);
+        final QueryTestValue newVal = new QueryTestValue(2);
+
+        ContinuousQuery<QueryTestKey, QueryTestValue> conQry = new ContinuousQuery<>();
+
+        final CountDownLatch latch = new CountDownLatch(1);
+
+        IgniteBiInClosure<Ignite, CacheEntryEvent<? extends QueryTestKey, ? extends QueryTestValue>> fltrClsr =
+            new IgniteBiInClosure<Ignite, CacheEntryEvent<? extends QueryTestKey, ? extends QueryTestValue>>() {
+                @Override public void apply(Ignite ignite, CacheEntryEvent<? extends QueryTestKey,
+                    ? extends QueryTestValue> e) {
+                    IgniteCache<Object, Object> cache0 = ignite.cache(cache.getName());
+
+                    QueryTestValue val = e.getValue();
+
+                    if (val == null || !val.equals(val0))
+                        return;
+
+                    Transaction tx = null;
+
+                    try {
+                        if (cache0.getConfiguration(CacheConfiguration.class)
+                            .getAtomicityMode() == TRANSACTIONAL)
+                            tx = ignite.transactions().txStart(PESSIMISTIC, REPEATABLE_READ);
+
+                        assertEquals(val, val0);
+
+                        latch.countDown();
+
+                        cache0.put(key, newVal);
+
+                        if (tx != null)
+                            tx.commit();
+                    }
+                    catch (Exception exp) {
+                        log.error("Failed: ", exp);
+
+                        throw new IgniteException(exp);
+                    }
+                    finally {
+                        if (tx != null)
+                            tx.close();
+                    }
+                }
+            };
+
+        conQry.setRemoteFilterFactory(FactoryBuilder.factoryOf(new CacheTestRemoteFilter(fltrClsr)));
+
+        conQry.setLocalListener(new CacheInvokeListener(
+            new CI2<Ignite, CacheEntryEvent<? extends QueryTestKey, ? extends QueryTestValue>>() {
+                @Override public void apply(Ignite ignite,
+                    CacheEntryEvent<? extends QueryTestKey, ? extends QueryTestValue> event) {
+                    // No-op.
+                }
+            }));
+
+        try (QueryCursor qry = cache.query(conQry)) {
+            GridTestUtils.assertThrows(log, new Callable<Object>() {
+                @Override public Object call() throws Exception {
+                    IgniteInternalFuture<Void> f = GridTestUtils.runAsync(new Callable<Void>() {
+                        @Override public Void call() throws Exception {
+                            cache.put(key, val0);
+
+                            return null;
+                        }
+                    });
+
+                    f.get(1, SECONDS);
+
+                    return null;
+                }
+            }, IgniteFutureTimeoutCheckedException.class, null);
+
+            assertTrue("Failed. Deadlock early than put happened.", U.await(latch, 3, SECONDS));
+        }
+    }
+
+    /**
      * @param ccfg Cache configuration.
      * @param asyncFilter Async filter.
      * @param asyncListener Async listener.
      * @throws Exception If failed.
      */
-    public void testNonDeadLockInFilter(CacheConfiguration ccfg,
+    private void testNonDeadLockInFilter(CacheConfiguration ccfg,
         final boolean asyncFilter,
         final boolean asyncListener) throws Exception {
-        final IgniteCache cache = ignite(0).createCache(ccfg);
+        ignite(0).createCache(ccfg);
+
+        ThreadLocalRandom rnd = ThreadLocalRandom.current();
 
         try {
-            final QueryTestKey key = affinityKey(cache);
-
-            final QueryTestValue val0 = new QueryTestValue(1);
-            final QueryTestValue newVal = new QueryTestValue(2);
-
             for (int i = 0; i < ITERATION_CNT; i++) {
                 log.info("Start iteration: " + i);
+
+                int nodeIdx = i % NODES;
+
+                final IgniteCache cache = grid(nodeIdx).cache(ccfg.getName());
+
+                final QueryTestKey key = NODES - 1 != nodeIdx ? affinityKey(cache) : new QueryTestKey(1);
+
+                final QueryTestValue val0 = new QueryTestValue(1);
+                final QueryTestValue newVal = new QueryTestValue(2);
 
                 ContinuousQuery<QueryTestKey, QueryTestValue> conQry = new ContinuousQuery<>();
 
                 final CountDownLatch latch = new CountDownLatch(1);
+                final CountDownLatch evtFromLsnrLatch = new CountDownLatch(1);
 
                 IgniteBiInClosure<Ignite, CacheEntryEvent<? extends QueryTestKey, ? extends QueryTestValue>> fltrClsr =
                     new IgniteBiInClosure<Ignite, CacheEntryEvent<? extends QueryTestKey, ? extends QueryTestValue>>() {
-                    @Override public void apply(Ignite ignite, CacheEntryEvent<? extends QueryTestKey,
-                        ? extends QueryTestValue> e) {
-                        if (asyncFilter) {
-                            assertFalse("Failed: " + Thread.currentThread().getName(),
-                                Thread.currentThread().getName().contains("sys-"));
+                        @Override public void apply(Ignite ignite, CacheEntryEvent<? extends QueryTestKey,
+                            ? extends QueryTestValue> e) {
+                            if (asyncFilter) {
+                                assertFalse("Failed: " + Thread.currentThread().getName(),
+                                    Thread.currentThread().getName().contains("sys-"));
 
-                            assertTrue("Failed: " + Thread.currentThread().getName(),
-                                Thread.currentThread().getName().contains("contQry-"));
+                                assertTrue("Failed: " + Thread.currentThread().getName(),
+                                    Thread.currentThread().getName().contains("contQry-"));
+                            }
+
+                            IgniteCache<Object, Object> cache0 = ignite.cache(cache.getName());
+
+                            QueryTestValue val = e.getValue();
+
+                            if (val == null)
+                                return;
+                            else if (val.equals(newVal)) {
+                                evtFromLsnrLatch.countDown();
+
+                                return;
+                            }
+                            else if (!val.equals(val0))
+                                return;
+
+                            Transaction tx = null;
+
+                            try {
+                                if (cache0.getConfiguration(CacheConfiguration.class)
+                                    .getAtomicityMode() == TRANSACTIONAL)
+                                    tx = ignite.transactions().txStart(PESSIMISTIC, REPEATABLE_READ);
+
+                                assertEquals(val, val0);
+
+                                cache0.put(key, newVal);
+
+                                if (tx != null)
+                                    tx.commit();
+
+                                latch.countDown();
+                            }
+                            catch (Exception exp) {
+                                log.error("Failed: ", exp);
+
+                                throw new IgniteException(exp);
+                            }
+                            finally {
+                                if (tx != null)
+                                    tx.close();
+                            }
                         }
-
-
-
-                        IgniteCache<Object, Object> cache0 = ignite.cache(cache.getName());
-
-                        QueryTestValue val = e.getValue();
-
-                        if (val == null || !val.equals(new QueryTestValue(1)))
-                            return;
-
-                        Transaction tx = null;
-
-                        try {
-                            if (cache0.getConfiguration(CacheConfiguration.class)
-                                .getAtomicityMode() == TRANSACTIONAL)
-                                tx = ignite.transactions().txStart(PESSIMISTIC, REPEATABLE_READ);
-
-                            assertEquals(val, val0);
-
-                            cache0.put(key, newVal);
-
-                            if (tx != null)
-                                tx.commit();
-
-                            latch.countDown();
-                        }
-                        catch (Exception exp) {
-                            log.error("Failed: ", exp);
-
-                            throw new IgniteException(exp);
-                        }
-                        finally {
-                            if (tx != null)
-                                tx.close();
-                        }
-                    }
-                };
+                    };
 
                 IgniteBiInClosure<Ignite, CacheEntryEvent<? extends QueryTestKey, ? extends QueryTestValue>> lsnrClsr =
                     new IgniteBiInClosure<Ignite, CacheEntryEvent<? extends QueryTestKey, ? extends QueryTestValue>>() {
@@ -550,11 +778,23 @@ public class CacheContinuousQueryAsyncFilterListenerTest extends GridCommonAbstr
                     conQry.setLocalListener(new CacheInvokeListener(lsnrClsr));
 
                 try (QueryCursor qry = cache.query(conQry)) {
-                    cache.put(key, val0);
+                    if (rnd.nextBoolean())
+                        cache.put(key, val0);
+                    else
+                        cache.invoke(key, new CacheEntryProcessor() {
+                            @Override public Object process(MutableEntry entry, Object... arguments)
+                                throws EntryProcessorException {
+                                entry.setValue(val0);
+
+                                return null;
+                            }
+                        });
 
                     assert U.await(latch, 3, SECONDS) : "Failed to waiting event.";
 
                     assertEquals(cache.get(key), new QueryTestValue(2));
+
+                    assertTrue("Failed to waiting event from filter.", U.await(latch, 3, SECONDS));
                 }
 
                 log.info("Iteration finished: " + i);
@@ -584,7 +824,7 @@ public class CacheContinuousQueryAsyncFilterListenerTest extends GridCommonAbstr
 
     /** {@inheritDoc} */
     @Override protected long getTestTimeout() {
-        return TimeUnit.SECONDS.toMillis(10);
+        return TimeUnit.SECONDS.toMillis(15);
     }
 
     /**
@@ -769,7 +1009,7 @@ public class CacheContinuousQueryAsyncFilterListenerTest extends GridCommonAbstr
             if (o == null || getClass() != o.getClass())
                 return false;
 
-            QueryTestValue that = (QueryTestValue) o;
+            QueryTestValue that = (QueryTestValue)o;
 
             return val1.equals(that.val1) && val2.equals(that.val2);
         }

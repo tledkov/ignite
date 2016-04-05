@@ -266,7 +266,7 @@ public class CacheContinuousQueryFactoryFilterRandomOperationTest extends CacheC
         Map<Integer, Long> partCntr,
         IgniteCache<Object, Object> cache)
         throws Exception {
-        Object key = rnd.nextInt(KEYS);
+        Object key = new QueryTestKey(rnd.nextInt(KEYS));
         Object newVal = value(rnd);
         Object oldVal = expData.get(key);
 
@@ -280,7 +280,7 @@ public class CacheContinuousQueryFactoryFilterRandomOperationTest extends CacheC
             tx = ignite.transactions().txStart(txRandomConcurrency(rnd), txRandomIsolation(rnd));
 
         try {
-            log.info("Random operation [key=" + key + ", op=" + op + ']');
+            // log.info("Random operation [key=" + key + ", op=" + op + ']');
 
             switch (op) {
                 case 0: {

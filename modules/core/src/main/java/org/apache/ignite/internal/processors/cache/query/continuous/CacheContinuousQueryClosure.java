@@ -18,16 +18,16 @@
 package org.apache.ignite.internal.processors.cache.query.continuous;
 
 /**
- *
+ * Continuous query closure.
  */
 public interface CacheContinuousQueryClosure extends Runnable {
     /**
-     *
+     * Callback for case when future completed successfully.
      */
     public void onEntryUpdate();
 
     /**
-     *
+     * Callback for case when future completed with error..
      */
     public void skipEvent();
 }

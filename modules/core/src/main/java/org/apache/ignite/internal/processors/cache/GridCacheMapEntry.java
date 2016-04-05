@@ -23,7 +23,6 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
-import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicReference;
 import javax.cache.Cache;
 import javax.cache.expiry.ExpiryPolicy;
@@ -36,7 +35,6 @@ import org.apache.ignite.IgniteLogger;
 import org.apache.ignite.cache.CacheAtomicWriteOrderMode;
 import org.apache.ignite.cache.CacheMemoryMode;
 import org.apache.ignite.cache.eviction.EvictableEntry;
-import org.apache.ignite.internal.IgniteInternalFuture;
 import org.apache.ignite.internal.managers.deployment.GridDeploymentInfo;
 import org.apache.ignite.internal.managers.deployment.GridDeploymentInfoBean;
 import org.apache.ignite.internal.processors.affinity.AffinityTopologyVersion;
@@ -49,7 +47,6 @@ import org.apache.ignite.internal.processors.cache.extras.GridCacheObsoleteEntry
 import org.apache.ignite.internal.processors.cache.extras.GridCacheTtlEntryExtras;
 import org.apache.ignite.internal.processors.cache.query.GridCacheQueryManager;
 import org.apache.ignite.internal.processors.cache.query.continuous.CacheContinuousQueryClosure;
-import org.apache.ignite.internal.processors.cache.query.continuous.CacheContinuousQueryHandler;
 import org.apache.ignite.internal.processors.cache.query.continuous.CacheContinuousQueryListener;
 import org.apache.ignite.internal.processors.cache.transactions.IgniteInternalTx;
 import org.apache.ignite.internal.processors.cache.transactions.IgniteTxEntry;
@@ -2512,13 +2509,13 @@ public abstract class GridCacheMapEntry extends GridMetadataAwareAdapter impleme
 
             // Continuous query filter should be perform under lock.
             if (lsnrs != null) {
-                CacheObject evtVal = val;
+                CacheObject evtVal = updated;
                 CacheObject evtOldVal = oldVal;
 
                 if (isOffHeapValuesOnly()) {
-                    evtVal = cctx.toCacheObject(cctx.unwrapTemporary(updated));
+                    evtVal = cctx.toCacheObject(cctx.unwrapTemporary(evtVal));
 
-                    evtOldVal = cctx.toCacheObject(cctx.unwrapTemporary(updated0));
+                    evtOldVal = cctx.toCacheObject(cctx.unwrapTemporary(evtOldVal));
                 }
 
                 clsrs = cctx.continuousQueries().onEntryUpdated(lsnrs, key, evtVal, evtOldVal, internal,

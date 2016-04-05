@@ -19,7 +19,6 @@ package org.apache.ignite.internal.processors.cache.query.continuous;
 
 import javax.cache.Cache;
 import org.apache.ignite.cache.query.CacheQueryEntryEvent;
-import org.apache.ignite.internal.IgniteInternalFuture;
 import org.apache.ignite.internal.processors.cache.GridCacheContext;
 import org.apache.ignite.internal.util.tostring.GridToStringExclude;
 import org.apache.ignite.internal.util.typedef.internal.S;

@@ -69,7 +69,10 @@ public class IgniteStripedThreadPoolExecutor implements ExecutorService {
         ThreadFactory factory = new IgniteThreadFactory(gridName, threadNamePrefix);
 
         for (int i = 0; i < concurrentLvl; i++)
-            execs[i] = Executors.newFixedThreadPool(poolSize, factory);
+            if (poolSize == 1)
+                execs[i] = Executors.newSingleThreadExecutor(factory);
+            else
+                execs[i] = Executors.newFixedThreadPool(poolSize, factory);
 
         // Find power-of-two sizes best matching arguments
         int sshift = 0;
@@ -161,8 +164,8 @@ public class IgniteStripedThreadPoolExecutor implements ExecutorService {
     public void execute(Runnable task, int idx) {
         if (idx < execs.length)
             execs[idx].execute(task);
-
-        execs[idx % execs.length].execute(task);
+        else
+            execs[idx % execs.length].execute(task);
     }
 
     /** {@inheritDoc} */
@@ -248,7 +251,7 @@ public class IgniteStripedThreadPoolExecutor implements ExecutorService {
     private <T> ExecutorService execForTask(T cmd) {
         assert cmd != null;
 
-        return execs[(hash(cmd.hashCode()) >>> segShift) & segMask];
+        return execs[(hash(System.identityHashCode(cmd)) >>> segShift) & segMask];
     }
 
     /** {@inheritDoc} */

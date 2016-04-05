@@ -179,13 +179,6 @@ public class GridCacheUpdateAtomicResult {
     }
 
     /**
-     * @param clsrs Closures.
-     */
-    private void continuousQueryClosures(List<CacheContinuousQueryClosure> clsrs) {
-        this.cntQryClsrs = clsrs;
-    }
-
-    /**
      * @return Continuous query closures.
      */
     public List<CacheContinuousQueryClosure> continuousQueryClosures() {

@@ -19,7 +19,6 @@ package org.apache.ignite.internal.processors.cache.query.continuous;
 
 import java.util.Map;
 import org.apache.ignite.internal.GridKernalContext;
-import org.apache.ignite.internal.IgniteInternalFuture;
 import org.apache.ignite.internal.processors.affinity.AffinityTopologyVersion;
 
 /**
