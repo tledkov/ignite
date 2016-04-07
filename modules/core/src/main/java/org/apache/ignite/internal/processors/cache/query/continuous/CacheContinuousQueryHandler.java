@@ -547,7 +547,7 @@ public class CacheContinuousQueryHandler<K, V> implements GridContinuousHandler 
 
         final GridCacheContext cctx = cacheContext(ctx);
 
-        final Collection<CacheContinuousQueryEntry> entries0 = new ArrayList<>();
+        final Collection<CacheEntryEvent<? extends K, ? extends V>> entries0 = new ArrayList<>();
 
         final List<PartitionRecovery> rcvs = new ArrayList<>();
 
@@ -570,7 +570,8 @@ public class CacheContinuousQueryHandler<K, V> implements GridContinuousHandler 
                     e.unmarshal(cctx, ldr);
 
                     if (!asyncCallback) {
-                        T2<Collection<CacheContinuousQueryEntry>, PartitionRecovery> evts = handleEvent(ctx, e, false);
+                        T2<Collection<CacheEntryEvent<? extends K, ? extends V>>, PartitionRecovery> evts =
+                            handleEvent(ctx, e, false);
 
                         if (evts.get2() != null)
                             rcvs.add(evts.get2());
@@ -586,42 +587,20 @@ public class CacheContinuousQueryHandler<K, V> implements GridContinuousHandler 
                 }
             }
 
-            final IgniteCache cache = cctx.kernalContext().cache().jcache(cctx.name());
-
             if (asyncCallback) {
                 for (final CacheContinuousQueryEntry e : entries) {
                     ctx.continuousQueryPool().execute(new Runnable() {
                         @Override public void run() {
-                            T2<Collection<CacheContinuousQueryEntry>, PartitionRecovery> evts =
+                            T2<Collection<CacheEntryEvent<? extends K, ? extends V>>, PartitionRecovery> evts =
                                 handleEvent(ctx, e, false);
 
-                            for (CacheContinuousQueryEntry entry : evts.get1()) {
-                                CacheContinuousQueryEvent evt =
-                                    new CacheContinuousQueryEvent<>(cache, cctx, entry);
-
-                                locLsnr.onUpdated(Collections.<CacheEntryEvent<? extends K, ? extends V>>
-                                    singleton(evt));
-                            }
+                            locLsnr.onUpdated(evts.get1());
                         }
                     }, e.partition());
                 }
             }
-            else if (!entries0.isEmpty()) {
-                Iterable<CacheEntryEvent<? extends K, ? extends V>> evts = F.viewReadOnly(entries0,
-                    new C1<CacheContinuousQueryEntry, CacheEntryEvent<? extends K, ? extends V>>() {
-                        @Override public CacheEntryEvent<? extends K, ? extends V> apply(CacheContinuousQueryEntry e) {
-                            return new CacheContinuousQueryEvent<>(cache, cctx, e);
-                        }
-                    },
-                    new IgnitePredicate<CacheContinuousQueryEntry>() {
-                        @Override public boolean apply(CacheContinuousQueryEntry entry) {
-                            return !entry.isFiltered();
-                        }
-                    }
-                );
-
-                locLsnr.onUpdated(evts);
-            }
+            else if (!entries0.isEmpty())
+                locLsnr.onUpdated(entries0);
         }
         finally {
             for (PartitionRecovery rec : rcvs)
@@ -635,24 +614,32 @@ public class CacheContinuousQueryHandler<K, V> implements GridContinuousHandler 
      * @param async Async.
      * @return Entry collection.
      */
-    private T2<Collection<CacheContinuousQueryEntry>, PartitionRecovery> handleEvent(GridKernalContext ctx,
-        CacheContinuousQueryEntry e, boolean async) {
+    private T2<Collection<CacheEntryEvent<? extends K, ? extends V>>, PartitionRecovery>
+        handleEvent(GridKernalContext ctx, CacheContinuousQueryEntry e, boolean async) {
         assert e != null;
+
+        GridCacheContext<K, V> cctx = cacheContext(ctx);
+
+        final IgniteCache cache = cctx.kernalContext().cache().jcache(cctx.name());
 
         if (internal) {
             if (e.isFiltered())
                 return new T2(Collections.emptyList(), null);
             else
-                return new T2(F.asList(e), null);
+                return new T2(F.<CacheEntryEvent<? extends K, ? extends V>>asList(
+                    new CacheContinuousQueryEvent<K, V>(cache, cctx, e)), null);
         }
 
         // Initial query entry or evicted entry. These events should be fired immediately.
-        if (e.updateCounter() == -1L)
-            return new T2(F.asList(e), null);
+        if (e.updateCounter() == -1L) {
+            return !e.isFiltered() ? new T2(F.<CacheEntryEvent<? extends K, ? extends V>>asList(
+                    new CacheContinuousQueryEvent<K, V>(cache, cctx, e)), null) :
+                new T2(Collections.<CacheEntryEvent<? extends K, ? extends V>>emptyList(), null);
+        }
 
         PartitionRecovery rec = getOrCreatePartitionRecovery(ctx, e.partition());
 
-        return new T2<>(rec.collectEntries(e, async), async ? null : rec);
+        return new T2<>(rec.<K, V>collectEntries(e, cctx, async, cache), rec);
     }
 
     /**
@@ -684,9 +671,8 @@ public class CacheContinuousQueryHandler<K, V> implements GridContinuousHandler 
                         }
                     }
                 }
-                else if (initUpdCntrs != null) {
+                else if (initUpdCntrs != null)
                     partCntr = initUpdCntrs.get(partId);
-                }
             }
 
             rec = new PartitionRecovery(ctx.log(getClass()), initTopVer0, partCntr);
@@ -779,10 +765,15 @@ public class CacheContinuousQueryHandler<K, V> implements GridContinuousHandler 
         /**
          * Add continuous entry.
          *
+         * @param cctx Cache context.
+         * @param cache Cache.
          * @param entry Cache continuous query entry.
-         * @return Collection entries which will be fired.
+         * @return Collection entries which will be fired. This collection should contains only non-filtered events.
          */
-        public Collection<CacheContinuousQueryEntry> collectEntries(CacheContinuousQueryEntry entry, boolean async) {
+        <K, V> Collection<CacheEntryEvent<? extends K, ? extends V>> collectEntries(CacheContinuousQueryEntry entry,
+            GridCacheContext cctx,
+            boolean async,
+            IgniteCache cache) {
             if (!async)
                 lock.lock();
 
@@ -792,10 +783,11 @@ public class CacheContinuousQueryHandler<K, V> implements GridContinuousHandler 
                 if (entry.topologyVersion() == null) { // Possible if entry is sent from old node.
                     assert entry.updateCounter() == 0L : entry;
 
-                    return F.asList(entry);
+                    return F.<CacheEntryEvent<? extends K, ? extends V>>
+                        asList(new CacheContinuousQueryEvent<K, V>(cache, cctx, entry));
                 }
 
-                List<CacheContinuousQueryEntry> entries;
+                List<CacheEntryEvent<? extends K, ? extends V>> entries;
 
                 // Received first event.
                 if (curTop == AffinityTopologyVersion.NONE) {
@@ -803,7 +795,10 @@ public class CacheContinuousQueryHandler<K, V> implements GridContinuousHandler 
 
                     curTop = entry.topologyVersion();
 
-                    return F.asList(entry);
+                    return !entry.isFiltered() ?
+                        F.<CacheEntryEvent<? extends K, ? extends V>>
+                            asList(new CacheContinuousQueryEvent<K, V>(cache, cctx, entry)) :
+                        Collections.<CacheEntryEvent<? extends K, ? extends V>>emptyList();
                 }
 
                 if (curTop.compareTo(entry.topologyVersion()) < 0) {
@@ -812,7 +807,7 @@ public class CacheContinuousQueryHandler<K, V> implements GridContinuousHandler 
 
                         for (CacheContinuousQueryEntry evt : pendingEvts.values()) {
                             if (evt != HOLE && !evt.isFiltered())
-                                entries.add(evt);
+                                entries.add(new CacheContinuousQueryEvent<K, V>(cache, cctx, evt));
                         }
 
                         pendingEvts.clear();
@@ -821,7 +816,8 @@ public class CacheContinuousQueryHandler<K, V> implements GridContinuousHandler 
 
                         lastFiredEvt = entry.updateCounter();
 
-                        entries.add(entry);
+                        if (!entry.isFiltered())
+                            entries.add(new CacheContinuousQueryEvent<K, V>(cache, cctx, entry));
 
                         return entries;
                     }
@@ -860,7 +856,7 @@ public class CacheContinuousQueryHandler<K, V> implements GridContinuousHandler 
                         Map.Entry<Long, CacheContinuousQueryEntry> e = iter.next();
 
                         if (e.getValue() != HOLE && !e.getValue().isFiltered())
-                            entries.add(e.getValue());
+                            entries.add(new CacheContinuousQueryEvent<K, V>(cache, cctx, e.getValue()));
 
                         lastFiredEvt = e.getKey();
 
@@ -876,7 +872,7 @@ public class CacheContinuousQueryHandler<K, V> implements GridContinuousHandler 
                             ++lastFiredEvt;
 
                             if (e.getValue() != HOLE && !e.getValue().isFiltered())
-                                entries.add(e.getValue());
+                                entries.add(new CacheContinuousQueryEvent<K, V>(cache, cctx, e.getValue()));
 
                             iter.remove();
                         }
@@ -1406,29 +1402,14 @@ public class CacheContinuousQueryHandler<K, V> implements GridContinuousHandler 
 
                 if (loc) {
                     if (!locCache) {
-                        T2<Collection<CacheContinuousQueryEntry>, PartitionRecovery> events =
+                        T2<Collection<CacheEntryEvent<? extends K, ? extends V>>, PartitionRecovery> events =
                             handleEvent(ctx, entry, asyncCallback);
 
                         try {
-                            Collection<CacheContinuousQueryEntry> entries = events.get1();
+                            Collection<CacheEntryEvent<? extends K, ? extends V>> evts = events.get1();
 
-                            if (!entries.isEmpty()) {
-                                Iterable<CacheEntryEvent<? extends K, ? extends V>> evts = F.viewReadOnly(entries,
-                                    new C1<CacheContinuousQueryEntry, CacheEntryEvent<? extends K, ? extends V>>() {
-                                        @Override public CacheEntryEvent<? extends K, ? extends V> apply(
-                                            CacheContinuousQueryEntry e) {
-                                            return new CacheContinuousQueryEvent<>(cache, cctx, e);
-                                        }
-                                    },
-                                    new IgnitePredicate<CacheContinuousQueryEntry>() {
-                                        @Override public boolean apply(CacheContinuousQueryEntry entry) {
-                                            return !entry.isFiltered();
-                                        }
-                                    }
-                                );
-
-                                if (!F.isEmpty(evts))
-                                    locLsnr.onUpdated(evts);
+                            if (!evts.isEmpty()) {
+                                locLsnr.onUpdated(evts);
 
                                 if (!internal && !skipPrimaryCheck)
                                     sendBackupAcknowledge(ackBuf.onAcknowledged(entry), routineId, ctx);
