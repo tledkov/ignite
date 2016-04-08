@@ -52,6 +52,7 @@ import org.apache.ignite.events.CacheQueryExecutedEvent;
 import org.apache.ignite.events.CacheQueryReadEvent;
 import org.apache.ignite.internal.GridKernalContext;
 import org.apache.ignite.internal.IgniteDeploymentCheckedException;
+import org.apache.ignite.internal.IgniteInternalFuture;
 import org.apache.ignite.internal.IgniteInterruptedCheckedException;
 import org.apache.ignite.internal.cluster.ClusterTopologyCheckedException;
 import org.apache.ignite.internal.managers.communication.GridIoPolicy;
@@ -169,6 +170,18 @@ public class CacheContinuousQueryHandler<K, V> implements GridContinuousHandler 
 
     /** */
     private transient boolean asyncCallback;
+
+    /** */
+    private transient UUID nodeId;
+
+    /** */
+    private transient UUID routineId;
+
+    /** */
+    private transient GridKernalContext ctx;
+
+    /** */
+    private transient IgniteLogger log;
 
     /**
      * Required by {@link Externalizable}.
@@ -317,9 +330,17 @@ public class CacheContinuousQueryHandler<K, V> implements GridContinuousHandler 
 
         rcvs = new ConcurrentHashMap<>();
 
+        this.nodeId = nodeId;
+
+        this.routineId = routineId;
+
+        this.ctx = ctx;
+
         final boolean loc = nodeId.equals(ctx.localNodeId());
 
         assert !skipPrimaryCheck || loc;
+
+        log = ctx.log(CacheContinuousQueryHandler.class);
 
         CacheContinuousQueryListener<K, V> lsnr = new CacheContinuousQueryListener<K, V>() {
             @Override public void onExecution() {
@@ -346,47 +367,32 @@ public class CacheContinuousQueryHandler<K, V> implements GridContinuousHandler 
                 return keepBinary;
             }
 
-            @Override public CacheContinuousQueryClosure onEntryUpdated(CacheContinuousQueryEvent<K, V> evt,
+            @Override public void onEntryUpdated(CacheContinuousQueryEvent<K, V> evt,
                 boolean primary,
                 boolean recordIgniteEvt,
-                boolean fireEvent) {
+                boolean fireEvent,
+                IgniteInternalFuture<?> fut) {
                 if (ignoreExpired && evt.getEventType() == EventType.EXPIRED)
-                    return null;
+                    return ;
 
                 final GridCacheContext<K, V> cctx = cacheContext(ctx);
 
                 // Check that cache stopped.
                 if (cctx == null)
-                    return null;
-
-                final IgniteCache cache = cctx.kernalContext().cache().jcache(cctx.name());
+                    return;
 
                 // skipPrimaryCheck is set only when listen locally for replicated cache events.
                 assert !skipPrimaryCheck || (cctx.isReplicated() && ctx.localNodeId().equals(nodeId));
 
-                final ContinuousQueryClosureImpl clsr = new ContinuousQueryClosureImpl(taskName(),
-                    recordIgniteEvt,
-                    routineId,
-                    nodeId,
-                    ctx,
-                    loc,
-                    primary,
-                    cctx,
-                    filter,
-                    evt,
-                    fireEvent,
-                    cache);
+                if (asyncCallback) {
+                    ContinuousQueryClosureImpl clsr = new ContinuousQueryClosureImpl(
+                        primary,
+                        evt,
+                        recordIgniteEvt,
+                        fut);
 
-                if (!asyncCallback) {
-                    clsr.filter();
-
-                    if (fireEvent)
-                        clsr.onEntryUpdate();
-                }
-                else
                     ctx.continuousQueryPool().execute(clsr, evt.partitionId());
-
-                return clsr;
+                }
             }
 
             @Override public void onUnregister() {
@@ -432,15 +438,15 @@ public class CacheContinuousQueryHandler<K, V> implements GridContinuousHandler 
                 sendBackupAcknowledge(ackBuf.acknowledgeOnTimeout(), routineId, ctx);
             }
 
-            @Override public CacheContinuousQueryClosure skipUpdateEvent(CacheContinuousQueryEvent<K, V> evt,
-                AffinityTopologyVersion topVer, boolean primary, boolean fireEvnt) {
+            @Override public void skipUpdateEvent(CacheContinuousQueryEvent<K, V> evt,
+                AffinityTopologyVersion topVer, boolean primary, boolean fireEvt) {
                 assert evt != null;
 
                 CacheContinuousQueryEntry e = evt.entry();
 
                 e.markFiltered();
 
-                return onEntryUpdated(evt, primary, false, fireEvnt);
+                onEntryUpdated(evt, primary, false, fireEvt, null);
             }
 
             @Override public void onPartitionEvicted(int part) {
@@ -1249,101 +1255,53 @@ public class CacheContinuousQueryHandler<K, V> implements GridContinuousHandler 
     /**
      *
      */
-    private class ContinuousQueryClosureImpl implements CacheContinuousQueryClosure {
-        /** */
-        private final IgniteCache cache;
-
-        /** */
-        private final IgniteLogger log;
-
-        /** */
-        private final boolean fireEvent;
-
+    private class ContinuousQueryClosureImpl implements Runnable {
         /** */
         private CacheContinuousQueryEvent<K, V> evt;
-
-        /** */
-        private CacheEntryEventFilter filter;
-
-        /** */
-        private final GridCacheContext<K, V> cctx;
 
         /** */
         private boolean primary;
 
         /** */
-        private boolean loc;
-
-        /** */
-        private GridKernalContext ctx;
-
-        /** */
-        private UUID nodeId;
-
-        /** */
-        private UUID routineId;
+        private boolean notify;
 
         /** */
         private boolean recordIgniteEvt;
 
         /** */
-        private final String taskName;
-
-        /** */
-        private boolean notify;
-
-        /** */
-        private boolean backup;
-
-        /** */
-        private final CountDownLatch latch = new CountDownLatch(1);
+        private IgniteInternalFuture<?> fut;
 
         /**
-         * @param taskName Task name.
-         * @param recordIgniteEvt Fired event.
-         * @param routineId Routine id.
-         * @param nodeId Node id.
-         * @param ctx Kernal context.
-         * @param loc Local.
          * @param primary Primary flag.
-         * @param cctx Cache context.
-         * @param filter Filter.
          * @param evt Event.
-         * @param fireEvent Immediately fire event.
-         * @param cache Cache.
+         * @param recordIgniteEvt Fired event.
          */
-        ContinuousQueryClosureImpl(String taskName,
-            boolean recordIgniteEvt,
-            UUID routineId,
-            UUID nodeId,
-            GridKernalContext ctx,
-            boolean loc,
+        ContinuousQueryClosureImpl(
             boolean primary,
-            GridCacheContext<K, V> cctx,
-            CacheEntryEventFilter filter,
             CacheContinuousQueryEvent<K, V> evt,
-            boolean fireEvent, IgniteCache cache) {
-            this.taskName = taskName;
-            this.recordIgniteEvt = recordIgniteEvt;
-            this.routineId = routineId;
-            this.nodeId = nodeId;
-            this.ctx = ctx;
-            this.loc = loc;
+            boolean recordIgniteEvt,
+            IgniteInternalFuture<?> fut) {
             this.primary = primary;
-            this.cctx = cctx;
-            this.filter = filter;
             this.evt = evt;
-            this.cache = cache;
-            this.fireEvent = fireEvent;
-
-            log = ctx.log(CacheContinuousQueryHandler.class);
+            this.recordIgniteEvt = recordIgniteEvt;
+            this.fut = fut;
         }
 
         /** {@inheritDoc} */
         @Override public void run() {
-            filter();
+            if (!filter())
+                return;
 
-            if (fireEvent || waitIfAsync())
+            if (fut != null) {
+                if (waitIfAsync())
+                    onEntryUpdate0();
+                else {
+                    evt.entry().markFiltered();
+
+                    onEntryUpdate0();
+                }
+            }
+            else
                 onEntryUpdate0();
         }
 
@@ -1358,39 +1316,14 @@ public class CacheContinuousQueryHandler<K, V> implements GridContinuousHandler 
          * @return {@code False} if filter sync.
          */
         private boolean waitIfAsync() {
-            if (backup)
-                return false;
-
             try {
-                U.await(latch);
+                fut.get();
             }
-            catch (IgniteInterruptedCheckedException e) {
-                log.error("Failed to wait latch.");
+            catch (IgniteCheckedException e) {
+                return false;
             }
 
             return true;
-        }
-
-        /** {@inheritDoc} */
-        @Override public void skipEvent() {
-            if (evt != null && evt.entry() != null)
-                evt.entry().markFiltered();
-
-            onEntryUpdate();
-        }
-
-        /** {@inheritDoc} */
-        @Override public void onEntryUpdate() {
-            if (backup)
-                return;
-
-            if (!fireEvent && asyncCallback) {
-                latch.countDown();
-
-                return;
-            }
-
-            onEntryUpdate0();
         }
 
         /**
@@ -1398,9 +1331,14 @@ public class CacheContinuousQueryHandler<K, V> implements GridContinuousHandler 
          */
         private void onEntryUpdate0() {
             try {
+                GridCacheContext<K, V> cctx = cacheContext(ctx);
+
+                if (cctx == null)
+                    return;
+
                 final CacheContinuousQueryEntry entry = evt.entry();
 
-                if (loc) {
+                if (routineId.equals(nodeId)) {
                     if (!locCache) {
                         T2<Collection<CacheEntryEvent<? extends K, ? extends V>>, PartitionRecovery> events =
                             handleEvent(ctx, entry, asyncCallback);
@@ -1454,11 +1392,11 @@ public class CacheContinuousQueryHandler<K, V> implements GridContinuousHandler 
                     null,
                     null,
                     null,
-                    filter instanceof CacheEntryEventSerializableFilter ?
-                        (CacheEntryEventSerializableFilter)filter : null,
+                    getEventFilter() instanceof CacheEntryEventSerializableFilter ?
+                        (CacheEntryEventSerializableFilter)getEventFilter() : null,
                     null,
                     nodeId,
-                    taskName,
+                    taskName(),
                     evt.getKey(),
                     evt.getValue(),
                     evt.getOldValue(),
@@ -1468,16 +1406,16 @@ public class CacheContinuousQueryHandler<K, V> implements GridContinuousHandler 
         }
 
         /**
-         *
+         * @return {@code True} if event happen on primary node otherwise {@code false}.
          */
-        public void filter() {
+        public boolean filter() {
             CacheContinuousQueryEntry entry = evt.entry();
 
             notify = !entry.isFiltered();
 
             try {
-                if (notify && filter != null)
-                    notify = filter.evaluate(evt);
+                if (notify && getEventFilter() != null)
+                    notify = getEventFilter().evaluate(evt);
             }
             catch (Exception e) {
                 U.error(log, "CacheEntryEventFilter failed: " + e);
@@ -1496,8 +1434,14 @@ public class CacheContinuousQueryHandler<K, V> implements GridContinuousHandler 
                     }
                 }
 
-                backup = true;
+                return false;
             }
+
+            return true;
+        }
+
+        private String taskName() {
+            return ctx.security().enabled() ? ctx.task().resolveTaskName(taskHash) : null;
         }
     }
 

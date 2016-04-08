@@ -38,7 +38,6 @@ import org.apache.ignite.internal.processors.cache.GridCacheContext;
 import org.apache.ignite.internal.processors.cache.GridCacheEntryRemovedException;
 import org.apache.ignite.internal.processors.cache.KeyCacheObject;
 import org.apache.ignite.internal.processors.cache.distributed.dht.GridDhtCacheEntry;
-import org.apache.ignite.internal.processors.cache.query.continuous.CacheContinuousQueryClosure;
 import org.apache.ignite.internal.processors.cache.version.GridCacheVersion;
 import org.apache.ignite.internal.util.future.GridFutureAdapter;
 import org.apache.ignite.internal.util.tostring.GridToStringExclude;
@@ -103,9 +102,6 @@ public class GridDhtAtomicUpdateFuture extends GridFutureAdapter<Void>
 
     /** Response count. */
     private volatile int resCnt;
-
-    /** Continuous query closures. */
-    private List<CacheContinuousQueryClosure> contQryClsrs;
 
     /**
      * @param cctx Cache context.
@@ -221,7 +217,6 @@ public class GridDhtAtomicUpdateFuture extends GridFutureAdapter<Void>
      * @param addPrevVal If {@code true} sends previous value to backups.
      * @param prevVal Previous value.
      * @param updateCntr Partition update counter.
-     * @param clsrs
      */
     public void addWriteEntry(GridDhtCacheEntry entry,
         @Nullable CacheObject val,
@@ -231,7 +226,7 @@ public class GridDhtAtomicUpdateFuture extends GridFutureAdapter<Void>
         @Nullable GridCacheVersion conflictVer,
         boolean addPrevVal,
         @Nullable CacheObject prevVal,
-        long updateCntr, List<CacheContinuousQueryClosure> clsrs) {
+        long updateCntr) {
         AffinityTopologyVersion topVer = updateReq.topologyVersion();
 
         Collection<ClusterNode> dhtNodes = cctx.dht().topology().nodes(entry.partition(), topVer);
@@ -242,13 +237,6 @@ public class GridDhtAtomicUpdateFuture extends GridFutureAdapter<Void>
         CacheWriteSynchronizationMode syncMode = updateReq.writeSynchronizationMode();
 
         keys.add(entry.key());
-
-        if (clsrs != null) {
-            if (contQryClsrs == null)
-                contQryClsrs = new ArrayList<>(keys.size());
-
-            contQryClsrs.addAll(clsrs);
-        }
 
         for (ClusterNode node : dhtNodes) {
             UUID nodeId = node.id();
@@ -356,15 +344,6 @@ public class GridDhtAtomicUpdateFuture extends GridFutureAdapter<Void>
             if (err != null) {
                 for (KeyCacheObject key : keys)
                     updateRes.addFailedKey(key, err);
-
-                if (contQryClsrs != null)
-                    for (CacheContinuousQueryClosure clsr : contQryClsrs)
-                        clsr.skipEvent();
-            }
-            else {
-                if (contQryClsrs != null)
-                    for (CacheContinuousQueryClosure clsr : contQryClsrs)
-                        clsr.onEntryUpdate();
             }
 
             if (updateReq.writeSynchronizationMode() == FULL_SYNC)

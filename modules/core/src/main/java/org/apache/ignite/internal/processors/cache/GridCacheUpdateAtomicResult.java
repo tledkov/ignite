@@ -19,7 +19,6 @@ package org.apache.ignite.internal.processors.cache;
 
 import java.util.List;
 import javax.cache.processor.EntryProcessor;
-import org.apache.ignite.internal.processors.cache.query.continuous.CacheContinuousQueryClosure;
 import org.apache.ignite.internal.processors.cache.version.GridCacheVersion;
 import org.apache.ignite.internal.processors.cache.version.GridCacheVersionConflictContext;
 import org.apache.ignite.internal.util.tostring.GridToStringInclude;
@@ -65,9 +64,6 @@ public class GridCacheUpdateAtomicResult {
     /** Value computed by entry processor. */
     private IgniteBiTuple<Object, Exception> res;
 
-    /** Continuous query closures. */
-    private List<CacheContinuousQueryClosure> cntQryClsrs;
-
     /**
      * Constructor.
      *
@@ -91,8 +87,7 @@ public class GridCacheUpdateAtomicResult {
         @Nullable GridCacheVersion rmvVer,
         @Nullable GridCacheVersionConflictContext<?, ?> conflictRes,
         boolean sndToDht,
-        long updateCntr,
-        List<CacheContinuousQueryClosure> cntQryClsrs
+        long updateCntr
     ) {
         this.success = success;
         this.oldVal = oldVal;
@@ -104,7 +99,6 @@ public class GridCacheUpdateAtomicResult {
         this.conflictRes = conflictRes;
         this.sndToDht = sndToDht;
         this.updateCntr = updateCntr;
-        this.cntQryClsrs = cntQryClsrs;
     }
 
     /**
@@ -176,13 +170,6 @@ public class GridCacheUpdateAtomicResult {
      */
     public boolean sendToDht() {
         return sndToDht;
-    }
-
-    /**
-     * @return Continuous query closures.
-     */
-    public List<CacheContinuousQueryClosure> continuousQueryClosures() {
-        return cntQryClsrs;
     }
 
     /** {@inheritDoc} */

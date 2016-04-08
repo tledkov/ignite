@@ -47,6 +47,7 @@ import org.apache.ignite.IgniteException;
 import org.apache.ignite.IgniteLogger;
 import org.apache.ignite.cache.CacheEntryEventSerializableFilter;
 import org.apache.ignite.cache.CacheMode;
+import org.apache.ignite.internal.IgniteInternalFuture;
 import org.apache.ignite.lang.IgniteAsyncCallback;
 import org.apache.ignite.cache.query.ContinuousQuery;
 import org.apache.ignite.cluster.ClusterNode;
@@ -172,7 +173,7 @@ public class CacheContinuousQueryManager extends GridCacheManagerAdapter {
      * @param fireEvnt
      * @param topVer Topology version.
      */
-    public List<CacheContinuousQueryClosure> skipUpdateEvent(Map<UUID, CacheContinuousQueryListener> lsnrs,
+    public void skipUpdateEvent(Map<UUID, CacheContinuousQueryListener> lsnrs,
         KeyCacheObject key,
         int partId,
         long updCntr,
@@ -180,8 +181,6 @@ public class CacheContinuousQueryManager extends GridCacheManagerAdapter {
         boolean fireEvnt,
         AffinityTopologyVersion topVer) {
         assert lsnrs != null;
-
-        List<CacheContinuousQueryClosure> clsrs = new ArrayList<>(lsnrs.size());
 
         for (CacheContinuousQueryListener lsnr : lsnrs.values()) {
             CacheContinuousQueryEntry e0 = new CacheContinuousQueryEntry(
@@ -198,10 +197,8 @@ public class CacheContinuousQueryManager extends GridCacheManagerAdapter {
             CacheContinuousQueryEvent evt = new CacheContinuousQueryEvent<>(
                 cctx.kernalContext().cache().jcache(cctx.name()), cctx, e0);
 
-            clsrs.add(lsnr.skipUpdateEvent(evt, topVer, primary, fireEvnt));
+            lsnr.skipUpdateEvent(evt, topVer, primary, fireEvnt);
         }
-
-        return clsrs;
     }
 
     /**
@@ -234,6 +231,7 @@ public class CacheContinuousQueryManager extends GridCacheManagerAdapter {
      * @param primary {@code True} if called on primary node.
      * @param preload Whether update happened during preloading.
      * @param updateCntr Update counter.
+     * @param fut Dht atomic future.
      * @param topVer Topology version.
      * @throws IgniteCheckedException In case of error.
      */
@@ -247,6 +245,7 @@ public class CacheContinuousQueryManager extends GridCacheManagerAdapter {
         boolean fireEvnt,
         boolean preload,
         long updateCntr,
+        @Nullable IgniteInternalFuture<?> fut,
         AffinityTopologyVersion topVer) throws IgniteCheckedException {
         Map<UUID, CacheContinuousQueryListener> lsnrCol = updateListeners(internal, preload);
 
@@ -262,6 +261,7 @@ public class CacheContinuousQueryManager extends GridCacheManagerAdapter {
                 fireEvnt,
                 preload,
                 updateCntr,
+                fut,
                 topVer);
         }
     }
@@ -278,9 +278,10 @@ public class CacheContinuousQueryManager extends GridCacheManagerAdapter {
      * @param preload Whether update happened during preloading.
      * @param updateCntr Update counter.
      * @param topVer Topology version.
+     * @param fut Dht atomic future.
      * @throws IgniteCheckedException In case of error.
      */
-    public List<CacheContinuousQueryClosure> onEntryUpdated(
+    public void onEntryUpdated(
         Map<UUID, CacheContinuousQueryListener> lsnrCol,
         KeyCacheObject key,
         CacheObject newVal,
@@ -291,6 +292,7 @@ public class CacheContinuousQueryManager extends GridCacheManagerAdapter {
         boolean fireEvnt,
         boolean preload,
         long updateCntr,
+        @Nullable IgniteInternalFuture<?> fut,
         AffinityTopologyVersion topVer)
         throws IgniteCheckedException
     {
@@ -301,15 +303,13 @@ public class CacheContinuousQueryManager extends GridCacheManagerAdapter {
         boolean hasOldVal = oldVal != null;
 
         if (!hasNewVal && !hasOldVal)
-            return skipUpdateEvent(lsnrCol, key, partId, updateCntr, primary, fireEvnt, topVer);
+            skipUpdateEvent(lsnrCol, key, partId, updateCntr, primary, fireEvnt, topVer);
 
         EventType evtType = !hasNewVal ? REMOVED : !hasOldVal ? CREATED : UPDATED;
 
         boolean initialized = false;
 
         boolean recordIgniteEvt = primary && !internal && cctx.gridEvents().isRecordable(EVT_CACHE_QUERY_OBJECT_READ);
-
-        List<CacheContinuousQueryClosure> clsrs = new ArrayList<>(lsnrCol.size());
 
         for (CacheContinuousQueryListener lsnr : lsnrCol.values()) {
             if (preload && !lsnr.notifyExisting())
@@ -343,13 +343,8 @@ public class CacheContinuousQueryManager extends GridCacheManagerAdapter {
             CacheContinuousQueryEvent evt = new CacheContinuousQueryEvent<>(
                 cctx.kernalContext().cache().jcache(cctx.name()), cctx, e0);
 
-            CacheContinuousQueryClosure clsr = lsnr.onEntryUpdated(evt, primary, recordIgniteEvt, fireEvnt);
-
-            if (clsr != null)
-                clsrs.add(clsr);
+            lsnr.onEntryUpdated(evt, primary, recordIgniteEvt, fireEvnt, fut);
         }
-
-        return clsrs;
     }
 
     /**
@@ -402,7 +397,7 @@ public class CacheContinuousQueryManager extends GridCacheManagerAdapter {
                 CacheContinuousQueryEvent evt = new CacheContinuousQueryEvent(
                     cctx.kernalContext().cache().jcache(cctx.name()), cctx, e0);
 
-                lsnr.onEntryUpdated(evt, primary, recordIgniteEvt, true);
+                lsnr.onEntryUpdated(evt, primary, recordIgniteEvt, true, null);
             }
         }
     }
