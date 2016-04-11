@@ -20,7 +20,6 @@ package org.apache.ignite.internal.processors.cache;
 import java.nio.ByteBuffer;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicReference;
@@ -42,6 +41,7 @@ import org.apache.ignite.internal.managers.deployment.GridDeploymentInfoBean;
 import org.apache.ignite.internal.processors.affinity.AffinityTopologyVersion;
 import org.apache.ignite.internal.processors.cache.distributed.dht.GridDhtCacheEntry;
 import org.apache.ignite.internal.processors.cache.distributed.dht.GridDhtLocalPartition;
+import org.apache.ignite.internal.processors.cache.distributed.dht.atomic.GridDhtAtomicUpdateFuture;
 import org.apache.ignite.internal.processors.cache.distributed.near.GridNearCacheEntry;
 import org.apache.ignite.internal.processors.cache.extras.GridCacheEntryExtras;
 import org.apache.ignite.internal.processors.cache.extras.GridCacheMvccEntryExtras;
@@ -1243,7 +1243,6 @@ public abstract class GridCacheMapEntry extends GridMetadataAwareAdapter impleme
                     internal,
                     partition(),
                     tx.local(),
-                    true,
                     false,
                     updateCntr0,
                     null,
@@ -1442,7 +1441,6 @@ public abstract class GridCacheMapEntry extends GridMetadataAwareAdapter impleme
                     internal,
                     partition(),
                     tx.local(),
-                    true,
                     false,
                     updateCntr0,
                     null,
@@ -1820,7 +1818,6 @@ public abstract class GridCacheMapEntry extends GridMetadataAwareAdapter impleme
                     internal,
                     partition(),
                     true,
-                    true,
                     false,
                     updateCntr,
                     null,
@@ -1874,7 +1871,7 @@ public abstract class GridCacheMapEntry extends GridMetadataAwareAdapter impleme
         String taskName,
         @Nullable CacheObject prevVal,
         @Nullable Long updateCntr,
-        @Nullable IgniteInternalFuture fut
+        @Nullable GridDhtAtomicUpdateFuture fut
     ) throws IgniteCheckedException, GridCacheEntryRemovedException, GridClosureException {
         assert cctx.atomic();
 
@@ -2011,8 +2008,7 @@ public abstract class GridCacheMapEntry extends GridMetadataAwareAdapter impleme
                             null,
                             null,
                             false,
-                            updateCntr0 == null ? 0 : updateCntr0,
-                            null);
+                            updateCntr0 == null ? 0 : updateCntr0);
                     }
                     // Will update something.
                     else {
@@ -2096,9 +2092,9 @@ public abstract class GridCacheMapEntry extends GridMetadataAwareAdapter impleme
                                 isInternal() || !context().userCache(),
                                 partition(),
                                 primary,
-                                true,
                                 false,
                                 updateCntr0,
+                                null,
                                 topVer);
                         }
 
@@ -2111,8 +2107,7 @@ public abstract class GridCacheMapEntry extends GridMetadataAwareAdapter impleme
                             null,
                             null,
                             false,
-                            0,
-                            null);
+                            0);
                     }
                 }
                 else
@@ -2189,8 +2184,7 @@ public abstract class GridCacheMapEntry extends GridMetadataAwareAdapter impleme
                         null,
                         null,
                         false,
-                        updateCntr0 == null ? 0 : updateCntr0,
-                        null);
+                        updateCntr0 == null ? 0 : updateCntr0);
                 }
             }
 
@@ -2238,8 +2232,7 @@ public abstract class GridCacheMapEntry extends GridMetadataAwareAdapter impleme
                         null,
                         null,
                         false,
-                        updateCntr0 == null ? 0 : updateCntr0,
-                        null);
+                        updateCntr0 == null ? 0 : updateCntr0);
                 }
             }
             else
@@ -2340,8 +2333,7 @@ public abstract class GridCacheMapEntry extends GridMetadataAwareAdapter impleme
                             null,
                             null,
                             false,
-                            updateCntr0 == null ? 0 : updateCntr0,
-                            null);
+                            updateCntr0 == null ? 0 : updateCntr0);
                     else if (interceptorVal != updated0) {
                         updated0 = cctx.unwrapTemporary(interceptorVal);
 
@@ -2424,8 +2416,7 @@ public abstract class GridCacheMapEntry extends GridMetadataAwareAdapter impleme
                             null,
                             null,
                             false,
-                            updateCntr0 == null ? 0 : updateCntr0,
-                            null);
+                            updateCntr0 == null ? 0 : updateCntr0);
                 }
 
                 if (writeThrough)
@@ -2527,8 +2518,8 @@ public abstract class GridCacheMapEntry extends GridMetadataAwareAdapter impleme
                     evtOldVal = cctx.toCacheObject(cctx.unwrapTemporary(evtOldVal));
                 }
 
-                clsrs = cctx.continuousQueries().onEntryUpdated(lsnrs, key, evtVal, evtOldVal, internal,
-                    partition(), primary, false, false, updateCntr0, topVer);
+                cctx.continuousQueries().onEntryUpdated(lsnrs, key, evtVal, evtOldVal, internal,
+                    partition(), primary, false, updateCntr0, fut, topVer);
             }
 
             cctx.dataStructures().onEntryUpdated(key, op == GridCacheOperation.DELETE, keepBinary);
@@ -2556,8 +2547,7 @@ public abstract class GridCacheMapEntry extends GridMetadataAwareAdapter impleme
             enqueueVer,
             conflictCtx,
             true,
-            updateCntr0 == null ? 0 : updateCntr0,
-            clsrs);
+            updateCntr0 == null ? 0 : updateCntr0);
     }
 
     /**
@@ -3331,9 +3321,9 @@ public abstract class GridCacheMapEntry extends GridMetadataAwareAdapter impleme
                         this.isInternal() || !this.context().userCache(),
                         this.partition(),
                         true,
-                        true,
                         preload,
                         updateCntr,
+                        null,
                         topVer);
 
                     cctx.dataStructures().onEntryUpdated(key, false, true);

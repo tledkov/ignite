@@ -373,6 +373,7 @@ public class GridNearAtomicCache<K, V> extends GridNearCacheAdapter<K, V> {
                             req.subjectId(),
                             taskName,
                             null,
+                            null,
                             null);
 
                         if (updRes.removeVersion() != null)

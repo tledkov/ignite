@@ -598,6 +598,9 @@ public class CacheContinuousQueryRandomOperationsTest extends GridCommonAbstract
             final List<CacheEntryEvent<? extends QueryTestKey, ? extends QueryTestValue>> evts =
                 new CopyOnWriteArrayList<>();
 
+            if (noOpFilterFactory() != null)
+                qry.setRemoteFilterFactory(noOpFilterFactory());
+
             qry.setLocalListener(new CacheEntryUpdatedListener<QueryTestKey, QueryTestValue>() {
                 @Override public void onUpdated(Iterable<CacheEntryEvent<? extends QueryTestKey,
                     ? extends QueryTestValue>> events) throws CacheEntryListenerException {
@@ -699,6 +702,13 @@ public class CacheContinuousQueryRandomOperationsTest extends GridCommonAbstract
     }
 
     /**
+     * @return No-op filter factory for batch operations.
+     */
+    protected Factory<? extends CacheEntryEventFilter<QueryTestKey, QueryTestValue>> noOpFilterFactory() {
+        return null;
+    }
+
+    /**
      * @param ccfg Cache configuration.
      * @throws Exception If failed.
      */
@@ -710,6 +720,9 @@ public class CacheContinuousQueryRandomOperationsTest extends GridCommonAbstract
 
             final List<CacheEntryEvent<? extends QueryTestKey, ? extends QueryTestValue>> evts =
                 new CopyOnWriteArrayList<>();
+
+            if (noOpFilterFactory() != null)
+                qry.setRemoteFilterFactory(noOpFilterFactory());
 
             qry.setLocalListener(new CacheEntryUpdatedListener<QueryTestKey, QueryTestValue>() {
                 @Override public void onUpdated(Iterable<CacheEntryEvent<? extends QueryTestKey,

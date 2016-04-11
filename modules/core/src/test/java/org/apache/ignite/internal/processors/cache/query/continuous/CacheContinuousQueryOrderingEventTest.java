@@ -62,7 +62,7 @@ import org.apache.ignite.transactions.Transaction;
 import static org.apache.ignite.cache.CacheAtomicWriteOrderMode.PRIMARY;
 import static org.apache.ignite.cache.CacheMode.PARTITIONED;
 import static org.apache.ignite.cache.CacheMode.REPLICATED;
-import static org.apache.ignite.cache.CacheWriteSynchronizationMode.FULL_SYNC;
+import static org.apache.ignite.cache.CacheWriteSynchronizationMode.PRIMARY_SYNC;
 
 /**
  *
@@ -163,29 +163,9 @@ public class CacheContinuousQueryOrderingEventTest extends GridCommonAbstractTes
     /**
      * @throws Exception If failed.
      */
-    public void testAtomicReplicated() throws Exception {
-        CacheConfiguration<Object, Object> ccfg = cacheConfiguration(REPLICATED, 0, CacheAtomicityMode.ATOMIC,
-            CacheMemoryMode.ONHEAP_TIERED);
-
-        doOrderingTest(ccfg, false);
-    }
-
-    /**
-     * @throws Exception If failed.
-     */
     public void testAtomicReplicatedOffheap() throws Exception {
         CacheConfiguration<Object, Object> ccfg = cacheConfiguration(REPLICATED, 0, CacheAtomicityMode.ATOMIC,
             CacheMemoryMode.OFFHEAP_TIERED);
-
-        doOrderingTest(ccfg, false);
-    }
-
-    /**
-     * @throws Exception If failed.
-     */
-    public void testAtomicOnheapWithoutBackup() throws Exception {
-        CacheConfiguration<Object, Object> ccfg = cacheConfiguration(PARTITIONED, 0, CacheAtomicityMode.ATOMIC,
-            CacheMemoryMode.ONHEAP_TIERED);
 
         doOrderingTest(ccfg, false);
     }
@@ -203,7 +183,7 @@ public class CacheContinuousQueryOrderingEventTest extends GridCommonAbstractTes
     /**
      * @throws Exception If failed.
      */
-    public void testTxOnheap() throws Exception {
+    public void testTxOnheapWithoutBackup() throws Exception {
         CacheConfiguration<Object, Object> ccfg = cacheConfiguration(PARTITIONED, 0, CacheAtomicityMode.TRANSACTIONAL,
             CacheMemoryMode.ONHEAP_TIERED);
 
@@ -585,7 +565,7 @@ public class CacheContinuousQueryOrderingEventTest extends GridCommonAbstractTes
         ccfg.setAtomicityMode(atomicityMode);
         ccfg.setCacheMode(cacheMode);
         ccfg.setMemoryMode(memoryMode);
-        ccfg.setWriteSynchronizationMode(FULL_SYNC);
+        ccfg.setWriteSynchronizationMode(PRIMARY_SYNC);
         ccfg.setAtomicWriteOrderMode(PRIMARY);
 
         if (cacheMode == PARTITIONED)

@@ -22,6 +22,7 @@ import java.io.IOException;
 import java.io.ObjectInput;
 import java.io.ObjectOutput;
 import javax.cache.configuration.Factory;
+import javax.cache.configuration.FactoryBuilder;
 import javax.cache.event.CacheEntryEvent;
 import javax.cache.event.CacheEntryEventFilter;
 import javax.cache.event.CacheEntryListenerException;
@@ -88,6 +89,45 @@ public class CacheContinuousQueryFactoryAsyncFilterRandomOperationTest
         /** {@inheritDoc} */
         @Override public NonSerializableAsyncFilter create() {
             return new NonSerializableAsyncFilter();
+        }
+    }
+
+    /** {@inheritDoc} */
+    @Override protected Factory<? extends CacheEntryEventFilter<QueryTestKey, QueryTestValue>> noOpFilterFactory() {
+        return FactoryBuilder.factoryOf(NoopAsyncFilter.class);
+    }
+
+    /**
+     *
+     */
+    @IgniteAsyncCallback
+    protected static class NoopAsyncFilter implements
+        CacheEntryEventSerializableFilter<QueryTestKey, QueryTestValue>, Externalizable {
+        /** */
+        public NoopAsyncFilter() {
+            // No-op.
+        }
+
+        /** {@inheritDoc} */
+        @Override public boolean evaluate(CacheEntryEvent<? extends QueryTestKey, ? extends QueryTestValue> event)
+            throws CacheEntryListenerException {
+            assertTrue("Failed. Current thread name: " + Thread.currentThread().getName(),
+                Thread.currentThread().getName().contains("contQry-"));
+
+            assertFalse("Failed. Current thread name: " + Thread.currentThread().getName(),
+                Thread.currentThread().getName().contains("sys-"));
+
+            return true;
+        }
+
+        /** {@inheritDoc} */
+        @Override public void writeExternal(ObjectOutput out) throws IOException {
+            // No-op.
+        }
+
+        /** {@inheritDoc} */
+        @Override public void readExternal(ObjectInput in) throws IOException, ClassNotFoundException {
+            // No-op.
         }
     }
 }

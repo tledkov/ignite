@@ -20,7 +20,6 @@ package org.apache.ignite.internal.processors.cache.distributed.dht.atomic;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicReference;
@@ -42,6 +41,7 @@ import org.apache.ignite.internal.processors.cache.version.GridCacheVersion;
 import org.apache.ignite.internal.util.future.GridFutureAdapter;
 import org.apache.ignite.internal.util.tostring.GridToStringExclude;
 import org.apache.ignite.internal.util.tostring.GridToStringInclude;
+import org.apache.ignite.internal.util.typedef.CI1;
 import org.apache.ignite.internal.util.typedef.CI2;
 import org.apache.ignite.internal.util.typedef.F;
 import org.apache.ignite.internal.util.typedef.internal.S;
@@ -96,6 +96,9 @@ public class GridDhtAtomicUpdateFuture extends GridFutureAdapter<Void>
 
     /** Future keys. */
     private final Collection<KeyCacheObject> keys;
+
+    /** Continuous query closures. */
+    private Collection<CI1<Boolean>> cntQryClsrs;
 
     /** */
     private final boolean waitForExchange;
@@ -336,14 +339,31 @@ public class GridDhtAtomicUpdateFuture extends GridFutureAdapter<Void>
         }
     }
 
+    /**
+     * @param clsr Continuous query closure.
+     */
+    public void addContinuousQueryClosure(CI1<Boolean> clsr){
+        if (cntQryClsrs == null)
+            cntQryClsrs = new ArrayList<>(10);
+
+        cntQryClsrs.add(clsr);
+    }
+
     /** {@inheritDoc} */
     @Override public boolean onDone(@Nullable Void res, @Nullable Throwable err) {
         if (super.onDone(res, err)) {
             cctx.mvcc().removeAtomicFuture(version());
 
-            if (err != null) {
+            boolean suc = err == null;
+
+            if (!suc) {
                 for (KeyCacheObject key : keys)
                     updateRes.addFailedKey(key, err);
+            }
+
+            if (cntQryClsrs != null) {
+                for (CI1<Boolean> clsr : cntQryClsrs)
+                    clsr.apply(suc);
             }
 
             if (updateReq.writeSynchronizationMode() == FULL_SYNC)
