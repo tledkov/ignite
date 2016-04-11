@@ -295,8 +295,11 @@ public class CacheContinuousQueryManager extends GridCacheManagerAdapter {
         boolean hasNewVal = newVal != null;
         boolean hasOldVal = oldVal != null;
 
-        if (!hasNewVal && !hasOldVal)
+        if (!hasNewVal && !hasOldVal) {
             skipUpdateEvent(lsnrCol, key, partId, updateCntr, primary, topVer);
+
+            return;
+        }
 
         EventType evtType = !hasNewVal ? REMOVED : !hasOldVal ? CREATED : UPDATED;
 
