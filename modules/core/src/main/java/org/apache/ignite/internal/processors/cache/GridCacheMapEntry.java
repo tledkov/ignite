@@ -1874,7 +1874,7 @@ public abstract class GridCacheMapEntry extends GridMetadataAwareAdapter impleme
         @Nullable final UUID subjId,
         final String taskName,
         @Nullable final CacheObject prevVal,
-        @Nullable final Long updateCntr
+        @Nullable final Long updateCntr,
         @Nullable GridDhtAtomicUpdateFuture fut
     ) throws IgniteCheckedException, GridCacheEntryRemovedException, GridClosureException {
         assert cctx.atomic();
