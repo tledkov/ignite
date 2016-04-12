@@ -223,8 +223,8 @@ public class IgniteConfiguration {
     /** Public pool size. */
     private int pubPoolSize = DFLT_PUBLIC_THREAD_CNT;
 
-    /** Async continuous query pool size. */
-    private int conQryPoolSize = DFLT_PUBLIC_THREAD_CNT;
+    /** Async Callback pool size. */
+    private int callbackPoolSize = DFLT_PUBLIC_THREAD_CNT;
 
     /** System pool size. */
     private int sysPoolSize = DFLT_SYSTEM_CORE_THREAD_CNT;
@@ -732,8 +732,8 @@ public class IgniteConfiguration {
      *
      * @return Thread pool size to be used
      */
-    public int getContinuousQueryPoolSize() {
-        return conQryPoolSize;
+    public int getAsyncCallbackPoolSize() {
+        return callbackPoolSize;
     }
 
     /**
@@ -845,14 +845,14 @@ public class IgniteConfiguration {
     }
 
     /**
-     * Sets continuous query thread pool size to use within grid.
+     * Sets async callback thread pool size to use within grid.
      *
      * @param poolSize Thread pool size to use within grid.
      * @return {@code this} for chaining.
-     * @see IgniteConfiguration#getContinuousQueryPoolSize()
+     * @see IgniteConfiguration#getAsyncCallbackPoolSize()
      */
-    public IgniteConfiguration setContinuousQueryPoolSize(int poolSize) {
-        this.conQryPoolSize = poolSize;
+    public IgniteConfiguration setAsyncCallbackPoolSize(int poolSize) {
+        this.callbackPoolSize = poolSize;
 
         return this;
     }

@@ -19,9 +19,11 @@ package org.apache.ignite.internal.processors.cache.query.continuous;
 
 import java.io.Serializable;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -55,7 +57,6 @@ import org.apache.ignite.spi.eventstorage.memory.MemoryEventStorageSpi;
 import org.apache.ignite.testframework.GridTestUtils;
 import org.apache.ignite.testframework.junits.common.GridCommonAbstractTest;
 import org.apache.ignite.transactions.Transaction;
-import org.eclipse.jetty.util.ConcurrentHashSet;
 import org.jetbrains.annotations.Nullable;
 
 import static org.apache.ignite.cache.CacheAtomicWriteOrderMode.PRIMARY;
@@ -188,15 +189,6 @@ public class CacheContinuousQueryOperationFromCallbackTest extends GridCommonAbs
     /**
      * @throws Exception If failed.
      */
-    public void testAtomicWithoutBackup() throws Exception {
-        CacheConfiguration<Object, Object> ccfg = cacheConfiguration(PARTITIONED, 0, ATOMIC);
-
-        doTest(ccfg, true);
-    }
-
-    /**
-     * @throws Exception If failed.
-     */
     public void testTxTwoBackup() throws Exception {
         CacheConfiguration<Object, Object> ccfg = cacheConfiguration(PARTITIONED, 2, TRANSACTIONAL);
 
@@ -234,8 +226,10 @@ public class CacheContinuousQueryOperationFromCallbackTest extends GridCommonAbs
             final int threadCnt = 10;
 
             for (int idx = 0; idx < NODES; idx++) {
-                Set<T2<QueryTestKey, QueryTestValue>> evts = new ConcurrentHashSet<>();
-                Set<T2<QueryTestKey, QueryTestValue>> evtsFromCb = new ConcurrentHashSet<>();
+                Set<T2<QueryTestKey, QueryTestValue>> evts = Collections.
+                    newSetFromMap(new ConcurrentHashMap<T2<QueryTestKey, QueryTestValue>, Boolean>());
+                Set<T2<QueryTestKey, QueryTestValue>> evtsFromCb = Collections.
+                    newSetFromMap(new ConcurrentHashMap<T2<QueryTestKey, QueryTestValue>, Boolean>());
 
                 IgniteCache<Object, Object> cache = grid(idx).getOrCreateCache(ccfg.getName());
 

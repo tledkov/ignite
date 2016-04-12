@@ -384,7 +384,7 @@ public class CacheContinuousQueryHandler<K, V> implements GridContinuousHandler 
                         recordIgniteEvt,
                         fut);
 
-                    ctx.continuousQueryPool().execute(clsr, evt.partitionId());
+                    ctx.asyncCallbackPool().execute(clsr, evt.partitionId());
                 }
                 else {
                     final boolean notify = filter(evt, primary);
@@ -563,20 +563,18 @@ public class CacheContinuousQueryHandler<K, V> implements GridContinuousHandler 
         assert objs != null;
         assert ctx != null;
 
-        final Collection<CacheContinuousQueryEntry> entries = (Collection<CacheContinuousQueryEntry>)objs;
+        final Collection<CacheContinuousQueryEntry> ents = (Collection<CacheContinuousQueryEntry>)objs;
 
-        if (entries.iterator().hasNext()) {
+        if (!ents.isEmpty()) {
             if (asyncCallback) {
-                int partId = entries.iterator().next().partition();
-
-                ctx.continuousQueryPool().execute(new Runnable() {
+                ctx.asyncCallbackPool().execute(new Runnable() {
                     @Override public void run() {
-                        notifyCallback0(nodeId, ctx, entries);
+                        notifyCallback0(nodeId, ctx, ents);
                     }
-                }, partId);
+                });
             }
             else
-                notifyCallback0(nodeId, ctx, entries);
+                notifyCallback0(nodeId, ctx, ents);
         }
     }
 

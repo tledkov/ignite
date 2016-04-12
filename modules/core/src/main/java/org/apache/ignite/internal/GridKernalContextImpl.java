@@ -753,7 +753,7 @@ public class GridKernalContextImpl implements GridKernalContext, Externalizable 
     }
 
     /** {@inheritDoc} */
-    @Override public IgniteStripedThreadPoolExecutor continuousQueryPool() {
+    @Override public IgniteStripedThreadPoolExecutor asyncCallbackPool() {
         return conQryExecSvc;
     }
 

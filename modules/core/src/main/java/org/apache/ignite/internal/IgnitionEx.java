@@ -1437,7 +1437,7 @@ public class IgnitionEx {
         private ExecutorService marshCacheExecSvc;
 
         /** Continuous query executor service. */
-        private IgniteStripedThreadPoolExecutor conQryExecSvc;
+        private IgniteStripedThreadPoolExecutor callbackExecSvc;
 
         /** Grid state. */
         private volatile IgniteState state = STOPPED;
@@ -1652,8 +1652,8 @@ public class IgnitionEx {
                 new LinkedBlockingQueue<Runnable>());
 
             // Note that we do not pre-start threads here as continuous query pool may not be needed.
-            conQryExecSvc = new IgniteStripedThreadPoolExecutor(
-                cfg.getContinuousQueryPoolSize(),
+            callbackExecSvc = new IgniteStripedThreadPoolExecutor(
+                cfg.getAsyncCallbackPoolSize(),
                 1,
                 cfg.getGridName(),
                 "contQry");
@@ -1697,7 +1697,7 @@ public class IgnitionEx {
                 grid = grid0;
 
                 grid0.start(myCfg, utilityCacheExecSvc, marshCacheExecSvc, execSvc, sysExecSvc, p2pExecSvc, mgmtExecSvc,
-                    igfsExecSvc, restExecSvc, conQryExecSvc,
+                    igfsExecSvc, restExecSvc, callbackExecSvc,
                     new CA() {
                         @Override public void apply() {
                             startLatch.countDown();
@@ -2301,9 +2301,9 @@ public class IgnitionEx {
 
             marshCacheExecSvc = null;
 
-            U.shutdownNow(getClass(), conQryExecSvc, log);
+            U.shutdownNow(getClass(), callbackExecSvc, log);
 
-            conQryExecSvc = null;
+            callbackExecSvc = null;
         }
 
         /**
