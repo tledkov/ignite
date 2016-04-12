@@ -61,6 +61,7 @@ import org.apache.ignite.internal.processors.cache.GridCacheContext;
 import org.apache.ignite.internal.processors.cache.GridCacheDeploymentManager;
 import org.apache.ignite.internal.processors.cache.distributed.dht.atomic.GridDhtAtomicUpdateFuture;
 import org.apache.ignite.internal.processors.cache.query.CacheQueryType;
+import org.apache.ignite.internal.processors.cache.query.continuous.CacheContinuousQueryManager.JCacheQueryLocalListener;
 import org.apache.ignite.internal.processors.cache.query.continuous.CacheContinuousQueryManager.JCacheQueryRemoteFilter;
 import org.apache.ignite.internal.processors.continuous.GridContinuousBatch;
 import org.apache.ignite.internal.processors.continuous.GridContinuousBatchAdapter;
@@ -301,19 +302,34 @@ public class CacheContinuousQueryHandler<K, V> implements GridContinuousHandler 
         assert routineId != null;
         assert ctx != null;
 
-        if (locLsnr != null)
-            ctx.resource().injectGeneric(locLsnr);
+        if (locLsnr != null) {
+            if (locLsnr instanceof JCacheQueryLocalListener) {
+                ctx.resource().injectGeneric(((JCacheQueryLocalListener)locLsnr).impl);
+
+                asyncCallback = ((JCacheQueryLocalListener)locLsnr).async();
+            }
+            else {
+                ctx.resource().injectGeneric(locLsnr);
+
+                asyncCallback = U.hasAnnotation(locLsnr, IgniteAsyncCallback.class);
+            }
+        }
 
         final CacheEntryEventFilter filter = getEventFilter();
 
-        asyncCallback = U.hasAnnotation(locLsnr, IgniteAsyncCallback.class);
-
         if (filter != null) {
-            ctx.resource().injectGeneric(filter);
+            if (filter instanceof JCacheQueryRemoteFilter) {
+                ctx.resource().injectGeneric(((JCacheQueryRemoteFilter)filter).impl);
 
-            if (!asyncCallback)
-                asyncCallback = U.hasAnnotation(filter, IgniteAsyncCallback.class)
-                    || (filter instanceof JCacheQueryRemoteFilter && ((JCacheQueryRemoteFilter)filter).async());
+                if (!asyncCallback)
+                    asyncCallback = ((JCacheQueryRemoteFilter)filter).async();
+            }
+            else {
+                ctx.resource().injectGeneric(filter);
+
+                if (!asyncCallback)
+                    asyncCallback = U.hasAnnotation(filter, IgniteAsyncCallback.class);
+            }
         }
 
         entryBufs = new ConcurrentHashMap<>();

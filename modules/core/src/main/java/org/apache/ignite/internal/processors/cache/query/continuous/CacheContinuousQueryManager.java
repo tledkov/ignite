@@ -924,9 +924,9 @@ public class CacheContinuousQueryManager extends GridCacheManagerAdapter {
     /**
      *
      */
-    private static class JCacheQueryLocalListener<K, V> implements CacheEntryUpdatedListener<K, V> {
+    static class JCacheQueryLocalListener<K, V> implements CacheEntryUpdatedListener<K, V> {
         /** */
-        private final CacheEntryListener<K, V> impl;
+        final CacheEntryListener<K, V> impl;
 
         /** */
         private final IgniteLogger log;
@@ -1001,6 +1001,13 @@ public class CacheContinuousQueryManager extends GridCacheManagerAdapter {
             evts.add(evt);
 
             return evts;
+        }
+
+        /**
+         * @return {@code True} if listener should be executed in non-system thread.
+         */
+        protected boolean async() {
+            return U.hasAnnotation(impl, IgniteAsyncCallback.class);
         }
     }
 
