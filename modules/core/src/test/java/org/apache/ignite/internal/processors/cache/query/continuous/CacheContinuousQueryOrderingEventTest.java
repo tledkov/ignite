@@ -30,7 +30,6 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import javax.cache.configuration.FactoryBuilder;
 import javax.cache.event.CacheEntryEvent;
-import javax.cache.event.CacheEntryListenerException;
 import javax.cache.event.CacheEntryUpdatedListener;
 import javax.cache.processor.EntryProcessorException;
 import javax.cache.processor.MutableEntry;
@@ -60,6 +59,11 @@ import org.apache.ignite.testframework.junits.common.GridCommonAbstractTest;
 import org.apache.ignite.transactions.Transaction;
 
 import static org.apache.ignite.cache.CacheAtomicWriteOrderMode.PRIMARY;
+import static org.apache.ignite.cache.CacheAtomicityMode.ATOMIC;
+import static org.apache.ignite.cache.CacheAtomicityMode.TRANSACTIONAL;
+import static org.apache.ignite.cache.CacheMemoryMode.OFFHEAP_TIERED;
+import static org.apache.ignite.cache.CacheMemoryMode.OFFHEAP_VALUES;
+import static org.apache.ignite.cache.CacheMemoryMode.ONHEAP_TIERED;
 import static org.apache.ignite.cache.CacheMode.PARTITIONED;
 import static org.apache.ignite.cache.CacheMode.REPLICATED;
 import static org.apache.ignite.cache.CacheWriteSynchronizationMode.PRIMARY_SYNC;
@@ -134,8 +138,8 @@ public class CacheContinuousQueryOrderingEventTest extends GridCommonAbstractTes
      * @throws Exception If failed.
      */
     public void testAtomicOnheapTwoBackup() throws Exception {
-        CacheConfiguration<Object, Object> ccfg = cacheConfiguration(PARTITIONED, 2, CacheAtomicityMode.ATOMIC,
-            CacheMemoryMode.ONHEAP_TIERED);
+        CacheConfiguration<Object, Object> ccfg = cacheConfiguration(PARTITIONED, 2, ATOMIC,
+            ONHEAP_TIERED);
 
         doOrderingTest(ccfg, false);
     }
@@ -144,8 +148,8 @@ public class CacheContinuousQueryOrderingEventTest extends GridCommonAbstractTes
      * @throws Exception If failed.
      */
     public void testAtomicOffheapTwoBackup() throws Exception {
-        CacheConfiguration<Object, Object> ccfg = cacheConfiguration(PARTITIONED, 2, CacheAtomicityMode.ATOMIC,
-            CacheMemoryMode.OFFHEAP_TIERED);
+        CacheConfiguration<Object, Object> ccfg = cacheConfiguration(PARTITIONED, 2, ATOMIC,
+            OFFHEAP_TIERED);
 
         doOrderingTest(ccfg, false);
     }
@@ -154,8 +158,8 @@ public class CacheContinuousQueryOrderingEventTest extends GridCommonAbstractTes
      * @throws Exception If failed.
      */
     public void testAtomicOffheapValuesTwoBackup() throws Exception {
-        CacheConfiguration<Object, Object> ccfg = cacheConfiguration(PARTITIONED, 2, CacheAtomicityMode.ATOMIC,
-            CacheMemoryMode.OFFHEAP_VALUES);
+        CacheConfiguration<Object, Object> ccfg = cacheConfiguration(PARTITIONED, 2, ATOMIC,
+            OFFHEAP_VALUES);
 
         doOrderingTest(ccfg, false);
     }
@@ -164,8 +168,8 @@ public class CacheContinuousQueryOrderingEventTest extends GridCommonAbstractTes
      * @throws Exception If failed.
      */
     public void testAtomicReplicatedOffheap() throws Exception {
-        CacheConfiguration<Object, Object> ccfg = cacheConfiguration(REPLICATED, 0, CacheAtomicityMode.ATOMIC,
-            CacheMemoryMode.OFFHEAP_TIERED);
+        CacheConfiguration<Object, Object> ccfg = cacheConfiguration(REPLICATED, 0, ATOMIC,
+            OFFHEAP_TIERED);
 
         doOrderingTest(ccfg, false);
     }
@@ -174,8 +178,8 @@ public class CacheContinuousQueryOrderingEventTest extends GridCommonAbstractTes
      * @throws Exception If failed.
      */
     public void testTxOnheapTwoBackup() throws Exception {
-        CacheConfiguration<Object, Object> ccfg = cacheConfiguration(PARTITIONED, 2, CacheAtomicityMode.TRANSACTIONAL,
-            CacheMemoryMode.ONHEAP_TIERED);
+        CacheConfiguration<Object, Object> ccfg = cacheConfiguration(PARTITIONED, 2, TRANSACTIONAL,
+            ONHEAP_TIERED);
 
         doOrderingTest(ccfg, false);
     }
@@ -184,8 +188,8 @@ public class CacheContinuousQueryOrderingEventTest extends GridCommonAbstractTes
      * @throws Exception If failed.
      */
     public void testTxOnheapWithoutBackup() throws Exception {
-        CacheConfiguration<Object, Object> ccfg = cacheConfiguration(PARTITIONED, 0, CacheAtomicityMode.TRANSACTIONAL,
-            CacheMemoryMode.ONHEAP_TIERED);
+        CacheConfiguration<Object, Object> ccfg = cacheConfiguration(PARTITIONED, 0, TRANSACTIONAL,
+            ONHEAP_TIERED);
 
         doOrderingTest(ccfg, false);
     }
@@ -196,8 +200,8 @@ public class CacheContinuousQueryOrderingEventTest extends GridCommonAbstractTes
      * @throws Exception If failed.
      */
     public void testAtomicOnheapTwoBackupAsync() throws Exception {
-        CacheConfiguration<Object, Object> ccfg = cacheConfiguration(PARTITIONED, 2, CacheAtomicityMode.ATOMIC,
-            CacheMemoryMode.ONHEAP_TIERED);
+        CacheConfiguration<Object, Object> ccfg = cacheConfiguration(PARTITIONED, 2, ATOMIC,
+            ONHEAP_TIERED);
 
         doOrderingTest(ccfg, true);
     }
@@ -206,8 +210,8 @@ public class CacheContinuousQueryOrderingEventTest extends GridCommonAbstractTes
      * @throws Exception If failed.
      */
     public void testAtomicOffheapTwoBackupAsync() throws Exception {
-        CacheConfiguration<Object, Object> ccfg = cacheConfiguration(PARTITIONED, 2, CacheAtomicityMode.ATOMIC,
-            CacheMemoryMode.OFFHEAP_TIERED);
+        CacheConfiguration<Object, Object> ccfg = cacheConfiguration(PARTITIONED, 2, ATOMIC,
+            OFFHEAP_TIERED);
 
         doOrderingTest(ccfg, true);
     }
@@ -216,8 +220,8 @@ public class CacheContinuousQueryOrderingEventTest extends GridCommonAbstractTes
      * @throws Exception If failed.
      */
     public void testAtomicOffheapValuesTwoBackupAsync() throws Exception {
-        CacheConfiguration<Object, Object> ccfg = cacheConfiguration(PARTITIONED, 2, CacheAtomicityMode.ATOMIC,
-            CacheMemoryMode.OFFHEAP_VALUES);
+        CacheConfiguration<Object, Object> ccfg = cacheConfiguration(PARTITIONED, 2, ATOMIC,
+            OFFHEAP_VALUES);
 
         doOrderingTest(ccfg, true);
     }
@@ -226,8 +230,8 @@ public class CacheContinuousQueryOrderingEventTest extends GridCommonAbstractTes
      * @throws Exception If failed.
      */
     public void testAtomicReplicatedAsync() throws Exception {
-        CacheConfiguration<Object, Object> ccfg = cacheConfiguration(REPLICATED, 0, CacheAtomicityMode.ATOMIC,
-            CacheMemoryMode.ONHEAP_TIERED);
+        CacheConfiguration<Object, Object> ccfg = cacheConfiguration(REPLICATED, 0, ATOMIC,
+            ONHEAP_TIERED);
 
         doOrderingTest(ccfg, true);
     }
@@ -236,8 +240,8 @@ public class CacheContinuousQueryOrderingEventTest extends GridCommonAbstractTes
      * @throws Exception If failed.
      */
     public void testAtomicReplicatedOffheapAsync() throws Exception {
-        CacheConfiguration<Object, Object> ccfg = cacheConfiguration(REPLICATED, 0, CacheAtomicityMode.ATOMIC,
-            CacheMemoryMode.OFFHEAP_TIERED);
+        CacheConfiguration<Object, Object> ccfg = cacheConfiguration(REPLICATED, 0, ATOMIC,
+            OFFHEAP_TIERED);
 
         doOrderingTest(ccfg, true);
     }
@@ -246,8 +250,8 @@ public class CacheContinuousQueryOrderingEventTest extends GridCommonAbstractTes
      * @throws Exception If failed.
      */
     public void testAtomicOnheapWithoutBackupAsync() throws Exception {
-        CacheConfiguration<Object, Object> ccfg = cacheConfiguration(PARTITIONED, 0, CacheAtomicityMode.ATOMIC,
-            CacheMemoryMode.ONHEAP_TIERED);
+        CacheConfiguration<Object, Object> ccfg = cacheConfiguration(PARTITIONED, 0, ATOMIC,
+            ONHEAP_TIERED);
 
         doOrderingTest(ccfg, true);
     }
@@ -256,8 +260,8 @@ public class CacheContinuousQueryOrderingEventTest extends GridCommonAbstractTes
      * @throws Exception If failed.
      */
     public void testTxOnheapTwoBackupAsync() throws Exception {
-        CacheConfiguration<Object, Object> ccfg = cacheConfiguration(PARTITIONED, 2, CacheAtomicityMode.TRANSACTIONAL,
-            CacheMemoryMode.ONHEAP_TIERED);
+        CacheConfiguration<Object, Object> ccfg = cacheConfiguration(PARTITIONED, 2, TRANSACTIONAL,
+            ONHEAP_TIERED);
 
         doOrderingTest(ccfg, true);
     }
@@ -266,8 +270,8 @@ public class CacheContinuousQueryOrderingEventTest extends GridCommonAbstractTes
      * @throws Exception If failed.
      */
     public void testTxOnheapAsync() throws Exception {
-        CacheConfiguration<Object, Object> ccfg = cacheConfiguration(PARTITIONED, 0, CacheAtomicityMode.TRANSACTIONAL,
-            CacheMemoryMode.ONHEAP_TIERED);
+        CacheConfiguration<Object, Object> ccfg = cacheConfiguration(PARTITIONED, 0, TRANSACTIONAL,
+            ONHEAP_TIERED);
 
         doOrderingTest(ccfg, true);
     }
@@ -334,7 +338,7 @@ public class CacheContinuousQueryOrderingEventTest extends GridCommonAbstractTes
                         QueryTestKey key = new QueryTestKey(rnd.nextInt(KEYS));
 
                         boolean startTx = cache.getConfiguration(CacheConfiguration.class).getAtomicityMode() ==
-                            CacheAtomicityMode.TRANSACTIONAL && rnd.nextBoolean();
+                            TRANSACTIONAL && rnd.nextBoolean();
 
                         Transaction tx = null;
 
@@ -471,8 +475,7 @@ public class CacheContinuousQueryOrderingEventTest extends GridCommonAbstractTes
         }
 
         /** {@inheritDoc} */
-        @Override public boolean evaluate(CacheEntryEvent<? extends QueryTestKey, ? extends QueryTestValue> e)
-            throws CacheEntryListenerException {
+        @Override public boolean evaluate(CacheEntryEvent<? extends QueryTestKey, ? extends QueryTestValue> e) {
             if (affinity(ignite.cache(cacheName)).isPrimary(ignite.cluster().localNode(), e.getKey())) {
                 QueryTestValue prevVal = prevVals.put(e.getKey(), e.getValue());
 
@@ -523,9 +526,8 @@ public class CacheContinuousQueryOrderingEventTest extends GridCommonAbstractTes
 
         /** {@inheritDoc} */
         @Override public void onUpdated(Iterable<CacheEntryEvent<? extends QueryTestKey,
-            ? extends QueryTestValue>> events)
-            throws CacheEntryListenerException {
-            for (CacheEntryEvent<? extends QueryTestKey, ? extends QueryTestValue> e : events) {
+            ? extends QueryTestValue>> evts) {
+            for (CacheEntryEvent<? extends QueryTestKey, ? extends QueryTestValue> e : evts) {
                 queue.add((CacheEntryEvent<QueryTestKey, QueryTestValue>)e);
 
                 cntr.incrementAndGet();
