@@ -274,6 +274,7 @@ public interface GridCacheEntryEx {
     public boolean partitionValid();
 
     /**
+     * @param ver Cache version to set. The version will be used on updating entry instead of generated one.
      * @param tx Ongoing transaction (possibly null).
      * @param readSwap Flag indicating whether to check swap memory.
      * @param readThrough Flag indicating whether to read through.
@@ -289,11 +290,13 @@ public interface GridCacheEntryEx {
      * @param transformClo Transform closure to record event.
      * @param taskName Task name.
      * @param expiryPlc Expiry policy.
+     * @param keepBinary Keep binary flag.
      * @return Cached value.
      * @throws IgniteCheckedException If loading value failed.
      * @throws GridCacheEntryRemovedException If entry was removed.
      */
-    @Nullable public CacheObject innerGet(@Nullable IgniteInternalTx tx,
+    @Nullable public CacheObject innerGet(@Nullable GridCacheVersion ver,
+        @Nullable IgniteInternalTx tx,
         boolean readSwap,
         boolean readThrough,
         boolean failFast,
@@ -309,6 +312,7 @@ public interface GridCacheEntryEx {
         throws IgniteCheckedException, GridCacheEntryRemovedException;
 
     /**
+     * @param ver Cache version to set. The version will be used on updating entry instead of generated one.
      * @param tx Cache transaction.
      * @param readSwap Flag indicating whether to check swap memory.
      * @param unmarshal Unmarshal flag.
@@ -318,11 +322,13 @@ public interface GridCacheEntryEx {
      * @param transformClo Transform closure to record event.
      * @param taskName Task name.
      * @param expiryPlc Expiry policy.
+     * @param keepBinary Keep binary flag.
      * @return Cached value and entry version.
      * @throws IgniteCheckedException If loading value failed.
      * @throws GridCacheEntryRemovedException If entry was removed.
      */
     @Nullable public T2<CacheObject, GridCacheVersion> innerGetVersioned(
+        @Nullable GridCacheVersion ver,
         IgniteInternalTx tx,
         boolean readSwap,
         boolean unmarshal,
@@ -355,6 +361,7 @@ public interface GridCacheEntryEx {
      * @param ttl Time to live.
      * @param evt Flag to signal event notification.
      * @param metrics Flag to signal metrics update.
+     * @param keepBinary Keep binary flag.
      * @param topVer Topology version.
      * @param filter Filter.
      * @param drType DR type.
@@ -398,6 +405,7 @@ public interface GridCacheEntryEx {
      * @param retval {@code True} if value should be returned (and unmarshalled if needed).
      * @param evt Flag to signal event notification.
      * @param metrics Flag to signal metrics notification.
+     * @param keepBinary Keep binary flag.
      * @param topVer Topology version.
      * @param filter Filter.
      * @param drType DR type.

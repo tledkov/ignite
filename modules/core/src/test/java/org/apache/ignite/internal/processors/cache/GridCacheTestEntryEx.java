@@ -427,7 +427,9 @@ public class GridCacheTestEntryEx extends GridMetadataAwareAdapter implements Gr
     }
 
     /** @inheritDoc */
-    @Override public CacheObject innerGet(@Nullable IgniteInternalTx tx,
+    @Override public CacheObject innerGet(
+        @Nullable GridCacheVersion ver,
+        @Nullable IgniteInternalTx tx,
         boolean readSwap,
         boolean readThrough,
         boolean failFast,
@@ -445,6 +447,7 @@ public class GridCacheTestEntryEx extends GridMetadataAwareAdapter implements Gr
 
     /** @inheritDoc */
     @Nullable @Override public T2<CacheObject, GridCacheVersion> innerGetVersioned(
+        @Nullable GridCacheVersion ver,
         IgniteInternalTx tx,
         boolean readSwap,
         boolean unmarshal,
