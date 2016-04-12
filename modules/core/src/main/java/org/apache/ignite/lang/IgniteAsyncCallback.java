@@ -26,10 +26,12 @@ import javax.cache.event.CacheEntryListener;
 import org.apache.ignite.configuration.IgniteConfiguration;
 
 /**
- * If {@link CacheEntryEventFilter filter} or {@link CacheEntryListener}
+ * If callback has this annotation when it will be executing in another thread.
+ * <p/>
+ * For example, if {@link CacheEntryEventFilter filter} or {@link CacheEntryListener}
  * annotated this annotation then they will be executing on a separate thread pool. It allows
  * to use cache API in a callbacks.
- * <p>
+ * <p/>
  * Different implementations can use different thread pools. For example continuous query will use continuous query
  * thread poll which can be configured by {@link IgniteConfiguration#setContinuousQueryPoolSize(int)}
  */
