@@ -612,9 +612,8 @@ public class CacheContinuousQueryFactoryFilterRandomOperationTest extends CacheC
         }
 
         /** {@inheritDoc} */
-        @Override public boolean evaluate(CacheEntryEvent<? extends QueryTestKey, ? extends QueryTestValue> event)
-            throws CacheEntryListenerException {
-            return isAccepted(event.getValue());
+        @Override public boolean evaluate(CacheEntryEvent<? extends QueryTestKey, ? extends QueryTestValue> evt) {
+            return isAccepted(evt.getValue());
         }
 
         /** {@inheritDoc} */
@@ -628,6 +627,7 @@ public class CacheContinuousQueryFactoryFilterRandomOperationTest extends CacheC
         }
 
         /**
+         * @param val Value.
          * @return {@code True} if value is even.
          */
         public static boolean isAccepted(QueryTestValue val) {
@@ -645,9 +645,9 @@ public class CacheContinuousQueryFactoryFilterRandomOperationTest extends CacheC
         }
 
         /** {@inheritDoc} */
-        @Override public boolean evaluate(CacheEntryEvent<? extends Integer, ? extends Integer> event)
+        @Override public boolean evaluate(CacheEntryEvent<? extends Integer, ? extends Integer> evt)
             throws CacheEntryListenerException {
-            return isAccepted(event.getValue());
+            return isAccepted(evt.getValue());
         }
 
         /**
@@ -662,6 +662,7 @@ public class CacheContinuousQueryFactoryFilterRandomOperationTest extends CacheC
      *
      */
     protected static class FilterFactory implements Factory<NonSerializableFilter> {
+        /** {@inheritDoc} */
         @Override public NonSerializableFilter create() {
             return new NonSerializableFilter();
         }

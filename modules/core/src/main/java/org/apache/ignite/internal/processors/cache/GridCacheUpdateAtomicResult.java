@@ -17,7 +17,6 @@
 
 package org.apache.ignite.internal.processors.cache;
 
-import java.util.List;
 import javax.cache.processor.EntryProcessor;
 import org.apache.ignite.internal.processors.cache.version.GridCacheVersion;
 import org.apache.ignite.internal.processors.cache.version.GridCacheVersionConflictContext;
@@ -87,8 +86,7 @@ public class GridCacheUpdateAtomicResult {
         @Nullable GridCacheVersion rmvVer,
         @Nullable GridCacheVersionConflictContext<?, ?> conflictRes,
         boolean sndToDht,
-        long updateCntr
-    ) {
+        long updateCntr) {
         this.success = success;
         this.oldVal = oldVal;
         this.newVal = newVal;

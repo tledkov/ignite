@@ -476,12 +476,12 @@ public class CacheContinuousQueryAsyncFilterListenerTest extends GridCommonAbstr
     /**
      * @param ccfg Cache configuration.
      * @param asyncFilter Async filter.
-     * @param asyncListener Async listener.
+     * @param asyncLsnr Async listener.
      * @throws Exception If failed.
      */
     private void testNonDeadLockInFilter(CacheConfiguration ccfg,
         final boolean asyncFilter,
-        final boolean asyncListener) throws Exception {
+        final boolean asyncLsnr) throws Exception {
         ignite(0).createCache(ccfg);
 
         ThreadLocalRandom rnd = ThreadLocalRandom.current();
@@ -562,7 +562,7 @@ public class CacheContinuousQueryAsyncFilterListenerTest extends GridCommonAbstr
                     new IgniteBiInClosure<Ignite, CacheEntryEvent<? extends QueryTestKey, ? extends QueryTestValue>>() {
                         @Override public void apply(Ignite ignite, CacheEntryEvent<? extends QueryTestKey,
                             ? extends QueryTestValue> e) {
-                            if (asyncListener) {
+                            if (asyncLsnr) {
                                 assertFalse("Failed: " + Thread.currentThread().getName(),
                                     Thread.currentThread().getName().contains("sys-"));
 
@@ -586,7 +586,7 @@ public class CacheContinuousQueryAsyncFilterListenerTest extends GridCommonAbstr
                 else
                     conQry.setRemoteFilterFactory(FactoryBuilder.factoryOf(new CacheTestRemoteFilter(fltrClsr)));
 
-                if (asyncListener)
+                if (asyncLsnr)
                     conQry.setLocalListener(new CacheInvokeListenerAsync(lsnrClsr));
                 else
                     conQry.setLocalListener(new CacheInvokeListener(lsnrClsr));

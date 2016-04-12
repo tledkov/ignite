@@ -343,6 +343,8 @@ public class GridDhtAtomicUpdateFuture extends GridFutureAdapter<Void>
      * @param clsr Continuous query closure.
      */
     public void addContinuousQueryClosure(CI1<Boolean> clsr){
+        assert !isDone() : this;
+
         if (cntQryClsrs == null)
             cntQryClsrs = new ArrayList<>(10);
 

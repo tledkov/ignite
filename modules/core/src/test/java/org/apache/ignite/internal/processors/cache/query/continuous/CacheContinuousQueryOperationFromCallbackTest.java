@@ -59,6 +59,8 @@ import org.eclipse.jetty.util.ConcurrentHashSet;
 import org.jetbrains.annotations.Nullable;
 
 import static org.apache.ignite.cache.CacheAtomicWriteOrderMode.PRIMARY;
+import static org.apache.ignite.cache.CacheAtomicityMode.ATOMIC;
+import static org.apache.ignite.cache.CacheAtomicityMode.TRANSACTIONAL;
 import static org.apache.ignite.cache.CacheMode.PARTITIONED;
 import static org.apache.ignite.cache.CacheMode.REPLICATED;
 import static org.apache.ignite.cache.CacheWriteSynchronizationMode.PRIMARY_SYNC;
@@ -86,7 +88,7 @@ public class CacheContinuousQueryOperationFromCallbackTest extends GridCommonAbs
     private boolean client;
 
     /** */
-    private static AtomicInteger filterCallbackCntr = new AtomicInteger(0);
+    private static AtomicInteger filterCbCntr = new AtomicInteger(0);
 
     /** {@inheritDoc} */
     @Override protected IgniteConfiguration getConfiguration(String gridName) throws Exception {
@@ -126,14 +128,14 @@ public class CacheContinuousQueryOperationFromCallbackTest extends GridCommonAbs
     @Override protected void beforeTest() throws Exception {
         super.beforeTest();
 
-        filterCallbackCntr.set(0);
+        filterCbCntr.set(0);
     }
 
     /**
      * @throws Exception If failed.
      */
     public void testAtomicTwoBackups() throws Exception {
-        CacheConfiguration<Object, Object> ccfg = cacheConfiguration(PARTITIONED, 2, CacheAtomicityMode.ATOMIC);
+        CacheConfiguration<Object, Object> ccfg = cacheConfiguration(PARTITIONED, 2, ATOMIC);
 
         doTest(ccfg, true);
     }
@@ -142,7 +144,7 @@ public class CacheContinuousQueryOperationFromCallbackTest extends GridCommonAbs
      * @throws Exception If failed.
      */
     public void testAtomicReplicatedFilter() throws Exception {
-        CacheConfiguration<Object, Object> ccfg = cacheConfiguration(REPLICATED, 0, CacheAtomicityMode.ATOMIC);
+        CacheConfiguration<Object, Object> ccfg = cacheConfiguration(REPLICATED, 0, ATOMIC);
 
         doTest(ccfg, false);
     }
@@ -151,7 +153,7 @@ public class CacheContinuousQueryOperationFromCallbackTest extends GridCommonAbs
      * @throws Exception If failed.
      */
     public void testAtomicTwoBackupsFilter() throws Exception {
-        CacheConfiguration<Object, Object> ccfg = cacheConfiguration(PARTITIONED, 2, CacheAtomicityMode.ATOMIC);
+        CacheConfiguration<Object, Object> ccfg = cacheConfiguration(PARTITIONED, 2, ATOMIC);
 
         doTest(ccfg, false);
     }
@@ -160,7 +162,7 @@ public class CacheContinuousQueryOperationFromCallbackTest extends GridCommonAbs
      * @throws Exception If failed.
      */
     public void testAtomicWithoutBackupsFilter() throws Exception {
-        CacheConfiguration<Object, Object> ccfg = cacheConfiguration(PARTITIONED, 0, CacheAtomicityMode.ATOMIC);
+        CacheConfiguration<Object, Object> ccfg = cacheConfiguration(PARTITIONED, 0, ATOMIC);
 
         doTest(ccfg, false);
     }
@@ -169,7 +171,7 @@ public class CacheContinuousQueryOperationFromCallbackTest extends GridCommonAbs
      * @throws Exception If failed.
      */
     public void testTxTwoBackupsFilter() throws Exception {
-        CacheConfiguration<Object, Object> ccfg = cacheConfiguration(PARTITIONED, 2, CacheAtomicityMode.TRANSACTIONAL);
+        CacheConfiguration<Object, Object> ccfg = cacheConfiguration(PARTITIONED, 2, TRANSACTIONAL);
 
         doTest(ccfg, false);
     }
@@ -178,7 +180,7 @@ public class CacheContinuousQueryOperationFromCallbackTest extends GridCommonAbs
      * @throws Exception If failed.
      */
     public void testTxReplicatedFilter() throws Exception {
-        CacheConfiguration<Object, Object> ccfg = cacheConfiguration(REPLICATED, 0, CacheAtomicityMode.TRANSACTIONAL);
+        CacheConfiguration<Object, Object> ccfg = cacheConfiguration(REPLICATED, 0, TRANSACTIONAL);
 
         doTest(ccfg, false);
     }
@@ -187,7 +189,7 @@ public class CacheContinuousQueryOperationFromCallbackTest extends GridCommonAbs
      * @throws Exception If failed.
      */
     public void testAtomicWithoutBackup() throws Exception {
-        CacheConfiguration<Object, Object> ccfg = cacheConfiguration(PARTITIONED, 0, CacheAtomicityMode.ATOMIC);
+        CacheConfiguration<Object, Object> ccfg = cacheConfiguration(PARTITIONED, 0, ATOMIC);
 
         doTest(ccfg, true);
     }
@@ -196,7 +198,7 @@ public class CacheContinuousQueryOperationFromCallbackTest extends GridCommonAbs
      * @throws Exception If failed.
      */
     public void testTxTwoBackup() throws Exception {
-        CacheConfiguration<Object, Object> ccfg = cacheConfiguration(PARTITIONED, 2, CacheAtomicityMode.TRANSACTIONAL);
+        CacheConfiguration<Object, Object> ccfg = cacheConfiguration(PARTITIONED, 2, TRANSACTIONAL);
 
         doTest(ccfg, true);
     }
@@ -205,7 +207,7 @@ public class CacheContinuousQueryOperationFromCallbackTest extends GridCommonAbs
      * @throws Exception If failed.
      */
     public void testTxReplicated() throws Exception {
-        CacheConfiguration<Object, Object> ccfg = cacheConfiguration(REPLICATED, 2, CacheAtomicityMode.TRANSACTIONAL);
+        CacheConfiguration<Object, Object> ccfg = cacheConfiguration(REPLICATED, 2, TRANSACTIONAL);
 
         doTest(ccfg, true);
     }
@@ -219,8 +221,7 @@ public class CacheContinuousQueryOperationFromCallbackTest extends GridCommonAbs
 
         List<QueryCursor<?>> qries = new ArrayList<>();
 
-        if (!fromLsnr)
-            assertEquals(0, filterCallbackCntr.get());
+        assertEquals(0, filterCbCntr.get());
 
         try {
             List<Set<T2<QueryTestKey, QueryTestValue>>> rcvdEvts = new ArrayList<>(NODES);
@@ -228,27 +229,27 @@ public class CacheContinuousQueryOperationFromCallbackTest extends GridCommonAbs
 
             final AtomicInteger qryCntr = new AtomicInteger(0);
 
-            final AtomicInteger callbackCntr = new AtomicInteger(0);
+            final AtomicInteger cbCntr = new AtomicInteger(0);
 
             final int threadCnt = 10;
 
             for (int idx = 0; idx < NODES; idx++) {
                 Set<T2<QueryTestKey, QueryTestValue>> evts = new ConcurrentHashSet<>();
-                Set<T2<QueryTestKey, QueryTestValue>> evtsFromCallback = new ConcurrentHashSet<>();
+                Set<T2<QueryTestKey, QueryTestValue>> evtsFromCb = new ConcurrentHashSet<>();
 
                 IgniteCache<Object, Object> cache = grid(idx).getOrCreateCache(ccfg.getName());
 
                 ContinuousQuery qry = new ContinuousQuery();
 
-                qry.setLocalListener(new TestCacheAsyncEventListener(evts, evtsFromCallback,
-                    fromLsnr ? cache : null, qryCntr, callbackCntr));
+                qry.setLocalListener(new TestCacheAsyncEventListener(evts, evtsFromCb,
+                    fromLsnr ? cache : null, qryCntr, cbCntr));
 
                 if (!fromLsnr)
                     qry.setRemoteFilterFactory(
                         FactoryBuilder.factoryOf(new CacheTestRemoteFilterAsync(ccfg.getName())));
 
                 rcvdEvts.add(evts);
-                evtsFromCallbacks.add(evtsFromCallback);
+                evtsFromCallbacks.add(evtsFromCb);
 
                 QueryCursor qryCursor = cache.query(qry);
 
@@ -266,7 +267,7 @@ public class CacheContinuousQueryOperationFromCallbackTest extends GridCommonAbs
                         QueryTestKey key = new QueryTestKey(rnd.nextInt(KEYS));
 
                         boolean startTx = cache.getConfiguration(CacheConfiguration.class).getAtomicityMode() ==
-                            CacheAtomicityMode.TRANSACTIONAL && rnd.nextBoolean();
+                            TRANSACTIONAL && rnd.nextBoolean();
 
                         Transaction tx = null;
 
@@ -274,9 +275,8 @@ public class CacheContinuousQueryOperationFromCallbackTest extends GridCommonAbs
                             tx = cache.unwrap(Ignite.class).transactions().txStart();
 
                         try {
-                            if ((cache.get(key) == null) || rnd.nextBoolean()) {
+                            if ((cache.get(key) == null) || rnd.nextBoolean())
                                 cache.invoke(key, new IncrementTestEntryProcessor());
-                            }
                             else {
                                 QueryTestValue val;
                                 QueryTestValue newVal;
@@ -312,14 +312,14 @@ public class CacheContinuousQueryOperationFromCallbackTest extends GridCommonAbs
             if (fromLsnr) {
                 final int expCnt = qryCntr.get() * NODES * KEYS_FROM_CALLBACK;
 
-                assertTrue("Failed to wait events [exp=" + expCnt + ", act=" + callbackCntr.get() + "]",
+                assertTrue("Failed to wait events [exp=" + expCnt + ", act=" + cbCntr.get() + "]",
                     GridTestUtils.waitForCondition(new PA() {
                         @Override public boolean apply() {
-                            return callbackCntr.get() >= expCnt;
+                            return cbCntr.get() >= expCnt;
                         }
                 }, TimeUnit.SECONDS.toMillis(60)));
 
-                assertEquals(expCnt, callbackCntr.get());
+                assertEquals(expCnt, cbCntr.get());
 
                 for (Set<T2<QueryTestKey, QueryTestValue>> set : evtsFromCallbacks)
                     checkEvents(set, qryCntr.get() * KEYS_FROM_CALLBACK, grid(0).cache(ccfg.getName()), true);
@@ -330,11 +330,11 @@ public class CacheContinuousQueryOperationFromCallbackTest extends GridCommonAbs
 
                 GridTestUtils.waitForCondition(new PA() {
                     @Override public boolean apply() {
-                        return filterCallbackCntr.get() >= expInvkCnt;
+                        return filterCbCntr.get() >= expInvkCnt;
                     }
                 }, TimeUnit.SECONDS.toMillis(20));
 
-                assertEquals(expInvkCnt, filterCallbackCntr.get());
+                assertEquals(expInvkCnt, filterCbCntr.get());
 
                 for (Set<T2<QueryTestKey, QueryTestValue>> set : evtsFromCallbacks)
                     checkEvents(set, expInvkCnt * KEYS_FROM_CALLBACK, grid(0).cache(ccfg.getName()), true);
@@ -355,15 +355,15 @@ public class CacheContinuousQueryOperationFromCallbackTest extends GridCommonAbs
      * @throws Exception If failed.
      */
     private void checkEvents(final Set<T2<QueryTestKey, QueryTestValue>> set, final int expCnt, IgniteCache cache,
-        boolean callback) throws Exception {
+        boolean cb) throws Exception {
         assertTrue(GridTestUtils.waitForCondition(new PA() {
             @Override public boolean apply() {
                 return set.size() >= expCnt;
             }
         }, 10000L));
 
-        int startKey = callback ? KEYS : 0;
-        int endKey = callback ? KEYS + KEYS_FROM_CALLBACK : KEYS;
+        int startKey = cb ? KEYS : 0;
+        int endKey = cb ? KEYS + KEYS_FROM_CALLBACK : KEYS;
 
         for (int i = startKey; i < endKey; i++) {
             QueryTestKey key = new QueryTestKey(i);
@@ -433,7 +433,7 @@ public class CacheContinuousQueryOperationFromCallbackTest extends GridCommonAbs
                         cache.invoke(new QueryTestKey(key), new IncrementTestEntryProcessor());
                 }
 
-                filterCallbackCntr.incrementAndGet();
+                filterCbCntr.incrementAndGet();
             }
 
             return true;
@@ -453,31 +453,31 @@ public class CacheContinuousQueryOperationFromCallbackTest extends GridCommonAbs
         private final AtomicInteger cntr;
 
         /** */
-        private final AtomicInteger callbackCntr;
+        private final AtomicInteger cbCntr;
 
         /** */
-        private final Set<T2<QueryTestKey, QueryTestValue>> evtsFromCallback;
+        private final Set<T2<QueryTestKey, QueryTestValue>> evtsFromCb;
 
         /** */
         private IgniteCache<QueryTestKey, QueryTestValue> cache;
 
         /**
          * @param rcvsEvts Set for received events.
-         * @param evtsFromCallback Set for received events.
+         * @param evtsFromCb Set for received events.
          * @param cache Ignite cache.
          * @param cntr Received events counter.
-         * @param callbackCntr Received events counter from callbacks.
+         * @param cbCntr Received events counter from callbacks.
          */
         public TestCacheAsyncEventListener(Set<T2<QueryTestKey, QueryTestValue>> rcvsEvts,
-            Set<T2<QueryTestKey, QueryTestValue>> evtsFromCallback,
+            Set<T2<QueryTestKey, QueryTestValue>> evtsFromCb,
             @Nullable IgniteCache cache,
             AtomicInteger cntr,
-            AtomicInteger callbackCntr) {
+            AtomicInteger cbCntr) {
             this.rcvsEvts = rcvsEvts;
-            this.evtsFromCallback = evtsFromCallback;
+            this.evtsFromCb = evtsFromCb;
             this.cache = cache;
             this.cntr = cntr;
-            this.callbackCntr = callbackCntr;
+            this.cbCntr = cbCntr;
         }
 
         /** {@inheritDoc} */
@@ -505,9 +505,9 @@ public class CacheContinuousQueryOperationFromCallbackTest extends GridCommonAbs
                     }
                 }
                 else {
-                    evtsFromCallback.add(new T2<>(e.getKey(), e.getValue()));
+                    evtsFromCb.add(new T2<>(e.getKey(), e.getValue()));
 
-                    callbackCntr.incrementAndGet();
+                    cbCntr.incrementAndGet();
                 }
             }
         }

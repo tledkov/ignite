@@ -25,7 +25,6 @@ import javax.cache.configuration.Factory;
 import javax.cache.configuration.FactoryBuilder;
 import javax.cache.event.CacheEntryEvent;
 import javax.cache.event.CacheEntryEventFilter;
-import javax.cache.event.CacheEntryListenerException;
 import org.apache.ignite.cache.CacheEntryEventSerializableFilter;
 import org.apache.ignite.lang.IgniteAsyncCallback;
 import org.jetbrains.annotations.NotNull;
@@ -53,15 +52,14 @@ public class CacheContinuousQueryFactoryAsyncFilterRandomOperationTest
         }
 
         /** {@inheritDoc} */
-        @Override public boolean evaluate(CacheEntryEvent<? extends QueryTestKey, ? extends QueryTestValue> event)
-            throws CacheEntryListenerException {
+        @Override public boolean evaluate(CacheEntryEvent<? extends QueryTestKey, ? extends QueryTestValue> evt) {
             assertTrue("Failed. Current thread name: " + Thread.currentThread().getName(),
                 Thread.currentThread().getName().contains("contQry-"));
 
             assertFalse("Failed. Current thread name: " + Thread.currentThread().getName(),
                 Thread.currentThread().getName().contains("sys-"));
 
-            return isAccepted(event.getValue());
+            return isAccepted(evt.getValue());
         }
 
         /** {@inheritDoc} */
@@ -75,6 +73,7 @@ public class CacheContinuousQueryFactoryAsyncFilterRandomOperationTest
         }
 
         /**
+         * @param val Value.
          * @return {@code True} if value is even.
          */
         public static boolean isAccepted(QueryTestValue val) {
@@ -109,8 +108,7 @@ public class CacheContinuousQueryFactoryAsyncFilterRandomOperationTest
         }
 
         /** {@inheritDoc} */
-        @Override public boolean evaluate(CacheEntryEvent<? extends QueryTestKey, ? extends QueryTestValue> event)
-            throws CacheEntryListenerException {
+        @Override public boolean evaluate(CacheEntryEvent<? extends QueryTestKey, ? extends QueryTestValue> evt) {
             assertTrue("Failed. Current thread name: " + Thread.currentThread().getName(),
                 Thread.currentThread().getName().contains("contQry-"));
 

@@ -38,4 +38,5 @@ import org.apache.ignite.configuration.IgniteConfiguration;
 @Retention(RetentionPolicy.RUNTIME)
 @Target(ElementType.TYPE)
 public @interface IgniteAsyncCallback {
+    // No-op.
 }

@@ -392,7 +392,7 @@ public class CacheContinuousQueryHandler<K, V> implements GridContinuousHandler 
                     if (primary || skipPrimaryCheck) {
                         if (fut == null)
                             onEntryUpdate(evt, notify, loc, recordIgniteEvt);
-                        else
+                        else {
                             fut.addContinuousQueryClosure(new CI1<Boolean>() {
                                 @Override public void apply(Boolean suc) {
                                     if (!suc)
@@ -401,6 +401,7 @@ public class CacheContinuousQueryHandler<K, V> implements GridContinuousHandler 
                                     onEntryUpdate(evt, notify, loc, recordIgniteEvt);
                                 }
                             });
+                        }
                     }
                 }
             }
@@ -1395,17 +1396,10 @@ public class CacheContinuousQueryHandler<K, V> implements GridContinuousHandler 
             boolean notify = filter(evt, primary);
 
             if (primary()) {
-                if (fut != null) {
-                    if (waitFuture())
-                        onEntryUpdate(evt, notify, nodeId.equals(ctx.localNodeId()), recordIgniteEvt);
-                    else {
-                        evt.entry().markFiltered();
+                if (fut != null && !waitFuture())
+                    evt.entry().markFiltered();
 
-                        onEntryUpdate(evt, notify, nodeId.equals(ctx.localNodeId()), recordIgniteEvt);
-                    }
-                }
-                else
-                    onEntryUpdate(evt, notify, nodeId.equals(ctx.localNodeId()), recordIgniteEvt);
+                onEntryUpdate(evt, notify, nodeId.equals(ctx.localNodeId()), recordIgniteEvt);
             }
         }
 
