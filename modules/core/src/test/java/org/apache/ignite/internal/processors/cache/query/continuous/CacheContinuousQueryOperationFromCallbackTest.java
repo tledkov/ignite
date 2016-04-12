@@ -19,12 +19,9 @@ package org.apache.ignite.internal.processors.cache.query.continuous;
 
 import java.io.Serializable;
 import java.util.ArrayList;
-import java.util.HashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
-import java.util.Map;
-import java.util.concurrent.ArrayBlockingQueue;
-import java.util.concurrent.BlockingQueue;
-import java.util.concurrent.ConcurrentHashMap;
+import java.util.Set;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -39,7 +36,6 @@ import org.apache.ignite.IgniteCache;
 import org.apache.ignite.cache.CacheAtomicityMode;
 import org.apache.ignite.cache.CacheEntryEventSerializableFilter;
 import org.apache.ignite.cache.CacheEntryProcessor;
-import org.apache.ignite.cache.CacheMemoryMode;
 import org.apache.ignite.cache.CacheMode;
 import org.apache.ignite.cache.query.ContinuousQuery;
 import org.apache.ignite.cache.query.QueryCursor;
@@ -48,6 +44,7 @@ import org.apache.ignite.configuration.IgniteConfiguration;
 import org.apache.ignite.internal.IgniteInternalFuture;
 import org.apache.ignite.internal.util.tostring.GridToStringInclude;
 import org.apache.ignite.internal.util.typedef.PA;
+import org.apache.ignite.internal.util.typedef.T2;
 import org.apache.ignite.internal.util.typedef.internal.S;
 import org.apache.ignite.lang.IgniteAsyncCallback;
 import org.apache.ignite.resources.IgniteInstanceResource;
@@ -58,6 +55,8 @@ import org.apache.ignite.spi.eventstorage.memory.MemoryEventStorageSpi;
 import org.apache.ignite.testframework.GridTestUtils;
 import org.apache.ignite.testframework.junits.common.GridCommonAbstractTest;
 import org.apache.ignite.transactions.Transaction;
+import org.eclipse.jetty.util.ConcurrentHashSet;
+import org.jetbrains.annotations.Nullable;
 
 import static org.apache.ignite.cache.CacheAtomicWriteOrderMode.PRIMARY;
 import static org.apache.ignite.cache.CacheMode.PARTITIONED;
@@ -67,12 +66,12 @@ import static org.apache.ignite.cache.CacheWriteSynchronizationMode.PRIMARY_SYNC
 /**
  *
  */
-public class CacheContinuousQueryOrderingEventTest extends GridCommonAbstractTest {
-    /** */
-    public static final int LISTENER_CNT = 3;
-
+public class CacheContinuousQueryOperationFromCallbackTest extends GridCommonAbstractTest {
     /** */
     public static final int KEYS = 10;
+
+    /** */
+    public static final int KEYS_FROM_CALLBACK = 20;
 
     /** */
     private static TcpDiscoveryIpFinder ipFinder = new TcpDiscoveryVmIpFinder(true);
@@ -81,13 +80,13 @@ public class CacheContinuousQueryOrderingEventTest extends GridCommonAbstractTes
     private static final int NODES = 5;
 
     /** */
-    public static final int ITERATION_CNT = 100;
+    public static final int ITERATION_CNT = 20;
 
     /** */
     private boolean client;
 
     /** */
-    private static volatile boolean fail;
+    private static AtomicInteger filterCallbackCntr = new AtomicInteger(0);
 
     /** {@inheritDoc} */
     @Override protected IgniteConfiguration getConfiguration(String gridName) throws Exception {
@@ -127,200 +126,133 @@ public class CacheContinuousQueryOrderingEventTest extends GridCommonAbstractTes
     @Override protected void beforeTest() throws Exception {
         super.beforeTest();
 
-        fail = false;
+        filterCallbackCntr.set(0);
     }
 
     /**
      * @throws Exception If failed.
      */
-    public void testAtomicOnheapTwoBackup() throws Exception {
-        CacheConfiguration<Object, Object> ccfg = cacheConfiguration(PARTITIONED, 2, CacheAtomicityMode.ATOMIC,
-            CacheMemoryMode.ONHEAP_TIERED);
+    public void testAtomicTwoBackups() throws Exception {
+        CacheConfiguration<Object, Object> ccfg = cacheConfiguration(PARTITIONED, 2, CacheAtomicityMode.ATOMIC);
 
-        doOrderingTest(ccfg, false);
+        doTest(ccfg, true);
     }
 
     /**
      * @throws Exception If failed.
      */
-    public void testAtomicOffheapTwoBackup() throws Exception {
-        CacheConfiguration<Object, Object> ccfg = cacheConfiguration(PARTITIONED, 2, CacheAtomicityMode.ATOMIC,
-            CacheMemoryMode.OFFHEAP_TIERED);
+    public void testAtomicReplicatedFilter() throws Exception {
+        CacheConfiguration<Object, Object> ccfg = cacheConfiguration(REPLICATED, 0, CacheAtomicityMode.ATOMIC);
 
-        doOrderingTest(ccfg, false);
+        doTest(ccfg, false);
     }
 
     /**
      * @throws Exception If failed.
      */
-    public void testAtomicOffheapValuesTwoBackup() throws Exception {
-        CacheConfiguration<Object, Object> ccfg = cacheConfiguration(PARTITIONED, 2, CacheAtomicityMode.ATOMIC,
-            CacheMemoryMode.OFFHEAP_VALUES);
+    public void testAtomicTwoBackupsFilter() throws Exception {
+        CacheConfiguration<Object, Object> ccfg = cacheConfiguration(PARTITIONED, 2, CacheAtomicityMode.ATOMIC);
 
-        doOrderingTest(ccfg, false);
+        doTest(ccfg, false);
     }
 
     /**
      * @throws Exception If failed.
      */
-    public void testAtomicReplicatedOffheap() throws Exception {
-        CacheConfiguration<Object, Object> ccfg = cacheConfiguration(REPLICATED, 0, CacheAtomicityMode.ATOMIC,
-            CacheMemoryMode.OFFHEAP_TIERED);
+    public void testAtomicWithoutBackupsFilter() throws Exception {
+        CacheConfiguration<Object, Object> ccfg = cacheConfiguration(PARTITIONED, 0, CacheAtomicityMode.ATOMIC);
 
-        doOrderingTest(ccfg, false);
+        doTest(ccfg, false);
     }
 
     /**
      * @throws Exception If failed.
      */
-    public void testTxOnheapTwoBackup() throws Exception {
-        CacheConfiguration<Object, Object> ccfg = cacheConfiguration(PARTITIONED, 2, CacheAtomicityMode.TRANSACTIONAL,
-            CacheMemoryMode.ONHEAP_TIERED);
+    public void testTxTwoBackupsFilter() throws Exception {
+        CacheConfiguration<Object, Object> ccfg = cacheConfiguration(PARTITIONED, 2, CacheAtomicityMode.TRANSACTIONAL);
 
-        doOrderingTest(ccfg, false);
+        doTest(ccfg, false);
     }
 
     /**
      * @throws Exception If failed.
      */
-    public void testTxOnheapWithoutBackup() throws Exception {
-        CacheConfiguration<Object, Object> ccfg = cacheConfiguration(PARTITIONED, 0, CacheAtomicityMode.TRANSACTIONAL,
-            CacheMemoryMode.ONHEAP_TIERED);
+    public void testTxReplicatedFilter() throws Exception {
+        CacheConfiguration<Object, Object> ccfg = cacheConfiguration(REPLICATED, 0, CacheAtomicityMode.TRANSACTIONAL);
 
-        doOrderingTest(ccfg, false);
-    }
-
-    // ASYNC
-
-    /**
-     * @throws Exception If failed.
-     */
-    public void testAtomicOnheapTwoBackupAsync() throws Exception {
-        CacheConfiguration<Object, Object> ccfg = cacheConfiguration(PARTITIONED, 2, CacheAtomicityMode.ATOMIC,
-            CacheMemoryMode.ONHEAP_TIERED);
-
-        doOrderingTest(ccfg, true);
+        doTest(ccfg, false);
     }
 
     /**
      * @throws Exception If failed.
      */
-    public void testAtomicOffheapTwoBackupAsync() throws Exception {
-        CacheConfiguration<Object, Object> ccfg = cacheConfiguration(PARTITIONED, 2, CacheAtomicityMode.ATOMIC,
-            CacheMemoryMode.OFFHEAP_TIERED);
+    public void testAtomicWithoutBackup() throws Exception {
+        CacheConfiguration<Object, Object> ccfg = cacheConfiguration(PARTITIONED, 0, CacheAtomicityMode.ATOMIC);
 
-        doOrderingTest(ccfg, true);
+        doTest(ccfg, true);
     }
 
     /**
      * @throws Exception If failed.
      */
-    public void testAtomicOffheapValuesTwoBackupAsync() throws Exception {
-        CacheConfiguration<Object, Object> ccfg = cacheConfiguration(PARTITIONED, 2, CacheAtomicityMode.ATOMIC,
-            CacheMemoryMode.OFFHEAP_VALUES);
+    public void testTxTwoBackup() throws Exception {
+        CacheConfiguration<Object, Object> ccfg = cacheConfiguration(PARTITIONED, 2, CacheAtomicityMode.TRANSACTIONAL);
 
-        doOrderingTest(ccfg, true);
+        doTest(ccfg, true);
     }
 
     /**
      * @throws Exception If failed.
      */
-    public void testAtomicReplicatedAsync() throws Exception {
-        CacheConfiguration<Object, Object> ccfg = cacheConfiguration(REPLICATED, 0, CacheAtomicityMode.ATOMIC,
-            CacheMemoryMode.ONHEAP_TIERED);
+    public void testTxReplicated() throws Exception {
+        CacheConfiguration<Object, Object> ccfg = cacheConfiguration(REPLICATED, 2, CacheAtomicityMode.TRANSACTIONAL);
 
-        doOrderingTest(ccfg, true);
-    }
-
-    /**
-     * @throws Exception If failed.
-     */
-    public void testAtomicReplicatedOffheapAsync() throws Exception {
-        CacheConfiguration<Object, Object> ccfg = cacheConfiguration(REPLICATED, 0, CacheAtomicityMode.ATOMIC,
-            CacheMemoryMode.OFFHEAP_TIERED);
-
-        doOrderingTest(ccfg, true);
-    }
-
-    /**
-     * @throws Exception If failed.
-     */
-    public void testAtomicOnheapWithoutBackupAsync() throws Exception {
-        CacheConfiguration<Object, Object> ccfg = cacheConfiguration(PARTITIONED, 0, CacheAtomicityMode.ATOMIC,
-            CacheMemoryMode.ONHEAP_TIERED);
-
-        doOrderingTest(ccfg, true);
-    }
-
-    /**
-     * @throws Exception If failed.
-     */
-    public void testTxOnheapTwoBackupAsync() throws Exception {
-        CacheConfiguration<Object, Object> ccfg = cacheConfiguration(PARTITIONED, 2, CacheAtomicityMode.TRANSACTIONAL,
-            CacheMemoryMode.ONHEAP_TIERED);
-
-        doOrderingTest(ccfg, true);
-    }
-
-    /**
-     * @throws Exception If failed.
-     */
-    public void testTxOnheapAsync() throws Exception {
-        CacheConfiguration<Object, Object> ccfg = cacheConfiguration(PARTITIONED, 0, CacheAtomicityMode.TRANSACTIONAL,
-            CacheMemoryMode.ONHEAP_TIERED);
-
-        doOrderingTest(ccfg, true);
+        doTest(ccfg, true);
     }
 
     /**
      * @param ccfg Cache configuration.
-     * @param async Async filter.
      * @throws Exception If failed.
      */
-    protected void doOrderingTest(
-        final CacheConfiguration ccfg,
-        final boolean async)
-        throws Exception {
+    protected void doTest(final CacheConfiguration ccfg, boolean fromLsnr) throws Exception {
         ignite(0).createCache(ccfg);
 
         List<QueryCursor<?>> qries = new ArrayList<>();
 
+        if (!fromLsnr)
+            assertEquals(0, filterCallbackCntr.get());
+
         try {
-            List<BlockingQueue<CacheEntryEvent<QueryTestKey, QueryTestValue>>> rcvdEvts =
-                new ArrayList<>(LISTENER_CNT * NODES);
+            List<Set<T2<QueryTestKey, QueryTestValue>>> rcvdEvts = new ArrayList<>(NODES);
+            List<Set<T2<QueryTestKey, QueryTestValue>>> evtsFromCallbacks = new ArrayList<>(NODES);
 
             final AtomicInteger qryCntr = new AtomicInteger(0);
 
-            final int threadCnt = 20;
+            final AtomicInteger callbackCntr = new AtomicInteger(0);
+
+            final int threadCnt = 10;
 
             for (int idx = 0; idx < NODES; idx++) {
-                for (int i = 0; i < LISTENER_CNT; i++) {
-                    BlockingQueue<CacheEntryEvent<QueryTestKey, QueryTestValue>> queue =
-                        new ArrayBlockingQueue<>(ITERATION_CNT * threadCnt);
+                Set<T2<QueryTestKey, QueryTestValue>> evts = new ConcurrentHashSet<>();
+                Set<T2<QueryTestKey, QueryTestValue>> evtsFromCallback = new ConcurrentHashSet<>();
 
-                    ContinuousQuery qry = new ContinuousQuery();
+                IgniteCache<Object, Object> cache = grid(idx).getOrCreateCache(ccfg.getName());
 
-                    if (async) {
-                        qry.setLocalListener(new TestCacheAsyncEventListener(queue, qryCntr));
+                ContinuousQuery qry = new ContinuousQuery();
 
-                        qry.setRemoteFilterFactory(FactoryBuilder.factoryOf(
-                            new CacheTestRemoteFilterAsync(ccfg.getName())));
-                    }
-                    else {
-                        qry.setLocalListener(new TestCacheEventListener(queue, qryCntr));
+                qry.setLocalListener(new TestCacheAsyncEventListener(evts, evtsFromCallback,
+                    fromLsnr ? cache : null, qryCntr, callbackCntr));
 
-                        qry.setRemoteFilterFactory(FactoryBuilder.factoryOf(
-                            new CacheTestRemoteFilter(ccfg.getName())));
-                    }
+                if (!fromLsnr)
+                    qry.setRemoteFilterFactory(
+                        FactoryBuilder.factoryOf(new CacheTestRemoteFilterAsync(ccfg.getName())));
 
-                    rcvdEvts.add(queue);
+                rcvdEvts.add(evts);
+                evtsFromCallbacks.add(evtsFromCallback);
 
-                    IgniteCache<Object, Object> cache = grid(idx).cache(ccfg.getName());
+                QueryCursor qryCursor = cache.query(qry);
 
-                    QueryCursor qryCursor = cache.query(qry);
-
-                    qries.add(qryCursor);
-                }
+                qries.add(qryCursor);
             }
 
             IgniteInternalFuture<Long> f = GridTestUtils.runMultiThreadedAsync(new Runnable() {
@@ -343,19 +275,7 @@ public class CacheContinuousQueryOrderingEventTest extends GridCommonAbstractTes
 
                         try {
                             if ((cache.get(key) == null) || rnd.nextBoolean()) {
-                                cache.invoke(key, new CacheEntryProcessor<QueryTestKey, QueryTestValue, Object>() {
-                                    @Override public Object process(
-                                        MutableEntry<QueryTestKey, QueryTestValue> entry,
-                                        Object... arguments)
-                                        throws EntryProcessorException {
-                                        if (entry.exists())
-                                            entry.setValue(new QueryTestValue(entry.getValue().val1 + 1));
-                                        else
-                                            entry.setValue(new QueryTestValue(0));
-
-                                        return null;
-                                    }
-                                });
+                                cache.invoke(key, new IncrementTestEntryProcessor());
                             }
                             else {
                                 QueryTestValue val;
@@ -378,18 +298,47 @@ public class CacheContinuousQueryOrderingEventTest extends GridCommonAbstractTes
                 }
             }, threadCnt, "put-thread");
 
-            f.get(15, TimeUnit.SECONDS);
+            f.get(30, TimeUnit.SECONDS);
 
-            GridTestUtils.waitForCondition(new PA() {
+            assert GridTestUtils.waitForCondition(new PA() {
                 @Override public boolean apply() {
-                    return qryCntr.get() >= ITERATION_CNT * threadCnt * LISTENER_CNT * NODES;
+                    return qryCntr.get() >= ITERATION_CNT * threadCnt * NODES;
                 }
-            }, 1000L);
+            }, TimeUnit.MINUTES.toMillis(2));
 
-            for (BlockingQueue<CacheEntryEvent<QueryTestKey, QueryTestValue>> queue : rcvdEvts)
-                checkEvents(queue, ITERATION_CNT * threadCnt);
+            for (Set<T2<QueryTestKey, QueryTestValue>> set : rcvdEvts)
+                checkEvents(set, ITERATION_CNT * threadCnt, grid(0).cache(ccfg.getName()), false);
 
-            assertFalse("Ordering invocations of filter broken.", fail);
+            if (fromLsnr) {
+                final int expCnt = qryCntr.get() * NODES * KEYS_FROM_CALLBACK;
+
+                assertTrue("Failed to wait events [exp=" + expCnt + ", act=" + callbackCntr.get() + "]",
+                    GridTestUtils.waitForCondition(new PA() {
+                        @Override public boolean apply() {
+                            return callbackCntr.get() >= expCnt;
+                        }
+                }, TimeUnit.SECONDS.toMillis(60)));
+
+                assertEquals(expCnt, callbackCntr.get());
+
+                for (Set<T2<QueryTestKey, QueryTestValue>> set : evtsFromCallbacks)
+                    checkEvents(set, qryCntr.get() * KEYS_FROM_CALLBACK, grid(0).cache(ccfg.getName()), true);
+            }
+            else {
+                final int expInvkCnt = ITERATION_CNT * threadCnt *
+                    (ccfg.getCacheMode() != REPLICATED ? (ccfg.getBackups() + 1) : NODES - 1) * NODES;
+
+                GridTestUtils.waitForCondition(new PA() {
+                    @Override public boolean apply() {
+                        return filterCallbackCntr.get() >= expInvkCnt;
+                    }
+                }, TimeUnit.SECONDS.toMillis(20));
+
+                assertEquals(expInvkCnt, filterCallbackCntr.get());
+
+                for (Set<T2<QueryTestKey, QueryTestValue>> set : evtsFromCallbacks)
+                    checkEvents(set, expInvkCnt * KEYS_FROM_CALLBACK, grid(0).cache(ccfg.getName()), true);
+            }
         }
         finally {
             for (QueryCursor<?> qry : qries)
@@ -400,62 +349,57 @@ public class CacheContinuousQueryOrderingEventTest extends GridCommonAbstractTes
     }
 
     /**
-     * @param queue Event queue.
+     * @param expCnt Expected count.
+     * @param cache Cache.
+     * @param set Received events.
      * @throws Exception If failed.
      */
-    private void checkEvents(BlockingQueue<CacheEntryEvent<QueryTestKey, QueryTestValue>> queue, int expCnt)
-        throws Exception {
-        CacheEntryEvent<QueryTestKey, QueryTestValue> evt;
-        int cnt = 0;
-        Map<QueryTestKey, Integer> vals = new HashMap<>();
-
-        while ((evt = queue.poll(100, TimeUnit.MILLISECONDS)) != null) {
-            assertNotNull(evt);
-            assertNotNull(evt.getKey());
-
-            Integer preVal = vals.get(evt.getKey());
-
-            if (preVal == null)
-                assertEquals(new QueryTestValue(0), evt.getValue());
-            else {
-                if (!new QueryTestValue(preVal + 1).equals(evt.getValue()))
-                    assertEquals("Key event: " + evt.getKey(), new QueryTestValue(preVal + 1), evt.getValue());
+    private void checkEvents(final Set<T2<QueryTestKey, QueryTestValue>> set, final int expCnt, IgniteCache cache,
+        boolean callback) throws Exception {
+        assertTrue(GridTestUtils.waitForCondition(new PA() {
+            @Override public boolean apply() {
+                return set.size() >= expCnt;
             }
+        }, 10000L));
 
-            vals.put(evt.getKey(), evt.getValue().val1);
+        int startKey = callback ? KEYS : 0;
+        int endKey = callback ? KEYS + KEYS_FROM_CALLBACK : KEYS;
 
-            ++cnt;
+        for (int i = startKey; i < endKey; i++) {
+            QueryTestKey key = new QueryTestKey(i);
+
+            QueryTestValue maxVal = (QueryTestValue)cache.get(key);
+
+            for (int val = 0; val <= maxVal.val1; val++)
+                assertTrue(set.remove(new T2<>(key, new QueryTestValue(val))));
         }
 
-        assertEquals(expCnt, cnt);
+        assertTrue(set.isEmpty());
     }
 
-    /** {@inheritDoc} */
-    @Override protected long getTestTimeout() {
-        return TimeUnit.MINUTES.toMillis(8);
+    /**
+     *
+     */
+    private static class IncrementTestEntryProcessor implements
+        CacheEntryProcessor<QueryTestKey, QueryTestValue, Object> {
+        /** {@inheritDoc} */
+        @Override public Object process(MutableEntry<QueryTestKey, QueryTestValue> entry, Object... arguments)
+            throws EntryProcessorException {
+            if (entry.exists())
+                entry.setValue(new QueryTestValue(entry.getValue().val1 + 1));
+            else
+                entry.setValue(new QueryTestValue(0));
+
+            return null;
+        }
     }
 
     /**
      *
      */
     @IgniteAsyncCallback
-    private static class CacheTestRemoteFilterAsync extends CacheTestRemoteFilter {
-        /**
-         * @param cacheName Cache name.
-         */
-        public CacheTestRemoteFilterAsync(String cacheName) {
-            super(cacheName);
-        }
-    }
-
-    /**
-     *
-     */
-    private static class CacheTestRemoteFilter implements
+    private static class CacheTestRemoteFilterAsync implements
         CacheEntryEventSerializableFilter<QueryTestKey, QueryTestValue> {
-        /** */
-        private Map<QueryTestKey, QueryTestValue> prevVals = new ConcurrentHashMap<>();
-
         /** */
         @IgniteInstanceResource
         private Ignite ignite;
@@ -466,20 +410,30 @@ public class CacheContinuousQueryOrderingEventTest extends GridCommonAbstractTes
         /**
          * @param cacheName Cache name.
          */
-        public CacheTestRemoteFilter(String cacheName) {
+        public CacheTestRemoteFilterAsync(String cacheName) {
             this.cacheName = cacheName;
         }
 
         /** {@inheritDoc} */
         @Override public boolean evaluate(CacheEntryEvent<? extends QueryTestKey, ? extends QueryTestValue> e)
             throws CacheEntryListenerException {
-            if (affinity(ignite.cache(cacheName)).isPrimary(ignite.cluster().localNode(), e.getKey())) {
-                QueryTestValue prevVal = prevVals.put(e.getKey(), e.getValue());
+            if (e.getKey().compareTo(new QueryTestKey(KEYS)) < 0) {
+                IgniteCache<QueryTestKey, QueryTestValue> cache = ignite.cache(cacheName);
 
-                if (prevVal != null) {
-                    if (!new QueryTestValue(prevVal.val1 + 1).equals(e.getValue()))
-                        fail = true;
+                if (ThreadLocalRandom.current().nextBoolean()) {
+                    Set<QueryTestKey> keys = new LinkedHashSet<>();
+
+                    for (int key = KEYS; key < KEYS + KEYS_FROM_CALLBACK; key++)
+                        keys.add(new QueryTestKey(key));
+
+                    cache.invokeAll(keys, new IncrementTestEntryProcessor());
                 }
+                else {
+                    for (int key = KEYS; key < KEYS + KEYS_FROM_CALLBACK; key++)
+                        cache.invoke(new QueryTestKey(key), new IncrementTestEntryProcessor());
+                }
+
+                filterCallbackCntr.incrementAndGet();
             }
 
             return true;
@@ -490,45 +444,71 @@ public class CacheContinuousQueryOrderingEventTest extends GridCommonAbstractTes
      *
      */
     @IgniteAsyncCallback
-    private static class TestCacheAsyncEventListener extends TestCacheEventListener {
-        /**
-         * @param queue Queue.
-         * @param cntr Received events counter.
-         */
-        public TestCacheAsyncEventListener(BlockingQueue<CacheEntryEvent<QueryTestKey, QueryTestValue>> queue,
-            AtomicInteger cntr) {
-            super(queue, cntr);
-        }
-    }
-
-    /**
-     *
-     */
-    private static class TestCacheEventListener implements CacheEntryUpdatedListener<QueryTestKey, QueryTestValue> {
+    private static class TestCacheAsyncEventListener
+        implements CacheEntryUpdatedListener<QueryTestKey, QueryTestValue> {
         /** */
-        private final BlockingQueue<CacheEntryEvent<QueryTestKey, QueryTestValue>> queue;
+        private final Set<T2<QueryTestKey, QueryTestValue>> rcvsEvts;
 
         /** */
         private final AtomicInteger cntr;
 
+        /** */
+        private final AtomicInteger callbackCntr;
+
+        /** */
+        private final Set<T2<QueryTestKey, QueryTestValue>> evtsFromCallback;
+
+        /** */
+        private IgniteCache<QueryTestKey, QueryTestValue> cache;
+
         /**
-         * @param queue Queue.
+         * @param rcvsEvts Set for received events.
+         * @param evtsFromCallback Set for received events.
+         * @param cache Ignite cache.
          * @param cntr Received events counter.
+         * @param callbackCntr Received events counter from callbacks.
          */
-        public TestCacheEventListener(BlockingQueue<CacheEntryEvent<QueryTestKey, QueryTestValue>> queue,
-            AtomicInteger cntr) {
-            this.queue = queue;
+        public TestCacheAsyncEventListener(Set<T2<QueryTestKey, QueryTestValue>> rcvsEvts,
+            Set<T2<QueryTestKey, QueryTestValue>> evtsFromCallback,
+            @Nullable IgniteCache cache,
+            AtomicInteger cntr,
+            AtomicInteger callbackCntr) {
+            this.rcvsEvts = rcvsEvts;
+            this.evtsFromCallback = evtsFromCallback;
+            this.cache = cache;
             this.cntr = cntr;
+            this.callbackCntr = callbackCntr;
         }
 
         /** {@inheritDoc} */
-        @Override public void onUpdated(Iterable<CacheEntryEvent<? extends QueryTestKey,
-            ? extends QueryTestValue>> events)
+        @Override public void onUpdated(Iterable<CacheEntryEvent<? extends QueryTestKey, ? extends QueryTestValue>> evts)
             throws CacheEntryListenerException {
-            for (CacheEntryEvent<? extends QueryTestKey, ? extends QueryTestValue> e : events) {
-                queue.add((CacheEntryEvent<QueryTestKey, QueryTestValue>)e);
+            for (CacheEntryEvent<? extends QueryTestKey, ? extends QueryTestValue> e : evts) {
+                if (e.getKey().compareTo(new QueryTestKey(KEYS)) < 0) {
+                    rcvsEvts.add(new T2<>(e.getKey(), e.getValue()));
 
-                cntr.incrementAndGet();
+                    cntr.incrementAndGet();
+
+                    if (cache != null) {
+                        if (ThreadLocalRandom.current().nextBoolean()) {
+                            Set<QueryTestKey> keys = new LinkedHashSet<>();
+
+                            for (int key = KEYS; key < KEYS + KEYS_FROM_CALLBACK; key++)
+                                keys.add(new QueryTestKey(key));
+
+                            cache.invokeAll(keys, new IncrementTestEntryProcessor());
+                        }
+                        else {
+                            for (int key = KEYS; key < KEYS + KEYS_FROM_CALLBACK; key++)
+                                cache.invoke(new QueryTestKey(key), new IncrementTestEntryProcessor());
+                        }
+                    }
+                }
+                else {
+                    evtsFromCallback.add(new T2<>(e.getKey(), e.getValue()));
+
+                    callbackCntr.incrementAndGet();
+                }
             }
         }
     }
@@ -537,20 +517,17 @@ public class CacheContinuousQueryOrderingEventTest extends GridCommonAbstractTes
      * @param cacheMode Cache mode.
      * @param backups Number of backups.
      * @param atomicityMode Cache atomicity mode.
-     * @param memoryMode Cache memory mode.
      * @return Cache configuration.
      */
     protected CacheConfiguration<Object, Object> cacheConfiguration(
         CacheMode cacheMode,
         int backups,
-        CacheAtomicityMode atomicityMode,
-        CacheMemoryMode memoryMode) {
+        CacheAtomicityMode atomicityMode) {
         CacheConfiguration<Object, Object> ccfg = new CacheConfiguration<>();
 
-        ccfg.setName("test-cache-" + atomicityMode + "-" + cacheMode + "-" + memoryMode + "-" + backups);
+        ccfg.setName("test-cache-" + atomicityMode + "-" + cacheMode + "-" + cacheMode + "-" + backups);
         ccfg.setAtomicityMode(atomicityMode);
         ccfg.setCacheMode(cacheMode);
-        ccfg.setMemoryMode(memoryMode);
         ccfg.setWriteSynchronizationMode(PRIMARY_SYNC);
         ccfg.setAtomicWriteOrderMode(PRIMARY);
 
