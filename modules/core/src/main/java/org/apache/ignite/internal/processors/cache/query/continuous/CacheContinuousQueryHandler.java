@@ -319,7 +319,8 @@ public class CacheContinuousQueryHandler<K, V> implements GridContinuousHandler 
 
         if (filter != null) {
             if (filter instanceof JCacheQueryRemoteFilter) {
-                ctx.resource().injectGeneric(((JCacheQueryRemoteFilter)filter).impl);
+                if (((JCacheQueryRemoteFilter)filter).impl != null)
+                    ctx.resource().injectGeneric(((JCacheQueryRemoteFilter)filter).impl);
 
                 if (!asyncCallback)
                     asyncCallback = ((JCacheQueryRemoteFilter)filter).async();
