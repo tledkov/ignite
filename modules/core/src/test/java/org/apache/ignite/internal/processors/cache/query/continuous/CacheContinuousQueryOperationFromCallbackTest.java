@@ -89,6 +89,9 @@ public class CacheContinuousQueryOperationFromCallbackTest extends GridCommonAbs
     public static final int ITERATION_CNT = 20;
 
     /** */
+    public static final int SYSTEM_POOL_SIZE = 10;
+
+    /** */
     private boolean client;
 
     /** */
@@ -97,6 +100,8 @@ public class CacheContinuousQueryOperationFromCallbackTest extends GridCommonAbs
     /** {@inheritDoc} */
     @Override protected IgniteConfiguration getConfiguration(String gridName) throws Exception {
         IgniteConfiguration cfg = super.getConfiguration(gridName);
+
+        cfg.setSystemThreadPoolSize(SYSTEM_POOL_SIZE);
 
         ((TcpDiscoverySpi)cfg.getDiscoverySpi()).setIpFinder(ipFinder);
         ((TcpCommunicationSpi)cfg.getCommunicationSpi()).setSharedMemoryPort(-1);
@@ -263,7 +268,7 @@ public class CacheContinuousQueryOperationFromCallbackTest extends GridCommonAbs
 
             final AtomicInteger cbCntr = new AtomicInteger(0);
 
-            final int threadCnt = IgniteConfiguration.DFLT_SYSTEM_CORE_THREAD_CNT * 2;
+            final int threadCnt = SYSTEM_POOL_SIZE * 2;
 
             for (int idx = 0; idx < NODES; idx++) {
                 Set<T2<QueryTestKey, QueryTestValue>> evts = Collections.
