@@ -689,8 +689,16 @@ public class CacheContinuousQueryRandomOperationsTest extends GridCommonAbstract
                     checkSingleEvent(evts.get(7), CREATED, new QueryTestValue(5), null);
                     checkSingleEvent(evts.get(8), EventType.UPDATED, new QueryTestValue(6), new QueryTestValue(5));
 
+                    evts.clear();
+
                     cache.remove(key);
                     cache.remove(key);
+
+                    assert GridTestUtils.waitForCondition(new PA() {
+                        @Override public boolean apply() {
+                            return evts.size() == 1;
+                        }
+                    }, 5_000);
 
                     evts.clear();
 

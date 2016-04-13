@@ -95,8 +95,6 @@ public class IgniteCacheQuerySelfTestSuite3 extends TestSuite {
 //        suite.addTestSuite(CacheContinuousQueryAsyncFilterListenerTest.class);
 //        suite.addTestSuite(CacheContinuousQueryFactoryFilterRandomOperationTest.class);
         suite.addTestSuite(CacheContinuousQueryFactoryAsyncFilterRandomOperationTest.class);
-        suite.addTestSuite(CacheContinuousQueryFactoryAsyncFilterRandomOperationTest.class);
-        suite.addTestSuite(CacheContinuousQueryFactoryAsyncFilterRandomOperationTest.class);
 //        suite.addTestSuite(CacheContinuousQueryOrderingEventTest.class);
 //        suite.addTestSuite(CacheContinuousQueryOperationFromCallbackTest.class);
 //        suite.addTestSuite(CacheContinuousQueryOperationP2PTest.class);
