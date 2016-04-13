@@ -1656,7 +1656,7 @@ public class IgnitionEx {
                 cfg.getAsyncCallbackPoolSize(),
                 1,
                 cfg.getGridName(),
-                "contQry");
+                "callback");
 
             if (myCfg.getConnectorConfiguration() != null) {
                 restExecSvc = new IgniteThreadPoolExecutor(

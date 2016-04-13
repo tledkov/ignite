@@ -464,7 +464,7 @@ public class CacheContinuousQueryAsyncFilterListenerTest extends GridCommonAbstr
                                     Thread.currentThread().getName().contains("sys-"));
 
                                 assertTrue("Failed: " + Thread.currentThread().getName(),
-                                    Thread.currentThread().getName().contains("contQry-"));
+                                    Thread.currentThread().getName().contains("callback-"));
                             }
                         }
                     };
@@ -619,7 +619,7 @@ public class CacheContinuousQueryAsyncFilterListenerTest extends GridCommonAbstr
                                     Thread.currentThread().getName().contains("sys-"));
 
                                 assertTrue("Failed: " + Thread.currentThread().getName(),
-                                    Thread.currentThread().getName().contains("contQry-"));
+                                    Thread.currentThread().getName().contains("callback-"));
                             }
 
                             IgniteCache<Object, Object> cache0 = ignite.cache(cache.getName());
@@ -673,7 +673,7 @@ public class CacheContinuousQueryAsyncFilterListenerTest extends GridCommonAbstr
                                     Thread.currentThread().getName().contains("sys-"));
 
                                 assertTrue("Failed: " + Thread.currentThread().getName(),
-                                    Thread.currentThread().getName().contains("contQry-"));
+                                    Thread.currentThread().getName().contains("callback-"));
                             }
 
                             QueryTestValue val = e.getValue();

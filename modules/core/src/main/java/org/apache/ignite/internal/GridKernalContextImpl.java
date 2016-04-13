@@ -306,7 +306,7 @@ public class GridKernalContextImpl implements GridKernalContext, Externalizable 
 
     /** */
     @GridToStringExclude
-    protected IgniteStripedThreadPoolExecutor conQryExecSvc;
+    protected IgniteStripedThreadPoolExecutor callbackExecSvc;
 
     /** */
     @GridToStringExclude
@@ -384,7 +384,7 @@ public class GridKernalContextImpl implements GridKernalContext, Externalizable 
         ExecutorService mgmtExecSvc,
         ExecutorService igfsExecSvc,
         ExecutorService restExecSvc,
-        IgniteStripedThreadPoolExecutor conQryExecSvc,
+        IgniteStripedThreadPoolExecutor callbackExecSvc,
         List<PluginProvider> plugins) throws IgniteCheckedException {
         assert grid != null;
         assert cfg != null;
@@ -401,7 +401,7 @@ public class GridKernalContextImpl implements GridKernalContext, Externalizable 
         this.mgmtExecSvc = mgmtExecSvc;
         this.igfsExecSvc = igfsExecSvc;
         this.restExecSvc = restExecSvc;
-        this.conQryExecSvc = conQryExecSvc;
+        this.callbackExecSvc = callbackExecSvc;
 
         marshCtx = new MarshallerContextImpl(plugins);
 
@@ -754,7 +754,7 @@ public class GridKernalContextImpl implements GridKernalContext, Externalizable 
 
     /** {@inheritDoc} */
     @Override public IgniteStripedThreadPoolExecutor asyncCallbackPool() {
-        return conQryExecSvc;
+        return callbackExecSvc;
     }
 
     /** {@inheritDoc} */

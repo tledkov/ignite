@@ -54,7 +54,7 @@ public class CacheContinuousQueryFactoryAsyncFilterRandomOperationTest
         /** {@inheritDoc} */
         @Override public boolean evaluate(CacheEntryEvent<? extends QueryTestKey, ? extends QueryTestValue> evt) {
             assertTrue("Failed. Current thread name: " + Thread.currentThread().getName(),
-                Thread.currentThread().getName().contains("contQry-"));
+                Thread.currentThread().getName().contains("callback-"));
 
             assertFalse("Failed. Current thread name: " + Thread.currentThread().getName(),
                 Thread.currentThread().getName().contains("sys-"));
@@ -110,7 +110,7 @@ public class CacheContinuousQueryFactoryAsyncFilterRandomOperationTest
         /** {@inheritDoc} */
         @Override public boolean evaluate(CacheEntryEvent<? extends QueryTestKey, ? extends QueryTestValue> evt) {
             assertTrue("Failed. Current thread name: " + Thread.currentThread().getName(),
-                Thread.currentThread().getName().contains("contQry-"));
+                Thread.currentThread().getName().contains("callback-"));
 
             assertFalse("Failed. Current thread name: " + Thread.currentThread().getName(),
                 Thread.currentThread().getName().contains("sys-"));
