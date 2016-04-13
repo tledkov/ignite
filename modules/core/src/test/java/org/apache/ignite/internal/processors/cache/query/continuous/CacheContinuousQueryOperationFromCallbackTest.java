@@ -344,14 +344,13 @@ public class CacheContinuousQueryOperationFromCallbackTest extends GridCommonAbs
             if (fromLsnr) {
                 final int expCnt = qryCntr.get() * NODES * KEYS_FROM_CALLBACK;
 
-                boolean condition = GridTestUtils.waitForCondition(new PA() {
+                boolean res = GridTestUtils.waitForCondition(new PA() {
                     @Override public boolean apply() {
                         return cbCntr.get() >= expCnt;
                     }
                 }, TimeUnit.SECONDS.toMillis(60));
 
-                assertTrue("Failed to wait events [exp=" + expCnt + ", act=" + cbCntr.get() + "]",
-                    condition);
+                assertTrue("Failed to wait events [exp=" + expCnt + ", act=" + cbCntr.get() + "]", res);
 
                 assertEquals(expCnt, cbCntr.get());
 
