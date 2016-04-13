@@ -579,18 +579,43 @@ public class CacheContinuousQueryHandler<K, V> implements GridContinuousHandler 
         assert objs != null;
         assert ctx != null;
 
-        final Collection<CacheContinuousQueryEntry> ents = (Collection<CacheContinuousQueryEntry>)objs;
+        final Collection<CacheContinuousQueryEntry> entries = (Collection<CacheContinuousQueryEntry>)objs;
 
-        if (!ents.isEmpty()) {
+        if (!entries.isEmpty()) {
             if (asyncCallback) {
-                ctx.asyncCallbackPool().execute(new Runnable() {
-                    @Override public void run() {
-                        notifyCallback0(nodeId, ctx, ents);
+                if (entries.size() != 1) {
+                    Map<Integer, Collection<CacheContinuousQueryEntry>> entriesByPart = new HashMap<>();
+
+                    for (CacheContinuousQueryEntry e : entries) {
+                        Collection<CacheContinuousQueryEntry> ents = entriesByPart.get(e.partition());
+
+                        if (ents == null) {
+                            ents = new ArrayList<>(entries.size());
+
+                            entriesByPart.put(e.partition(), ents);
+                        }
+
+                        ents.add(e);
                     }
-                });
+
+                    for (final Map.Entry<Integer, Collection<CacheContinuousQueryEntry>> e : entriesByPart.entrySet()) {
+                        ctx.asyncCallbackPool().execute(new Runnable() {
+                            @Override public void run() {
+                                notifyCallback0(nodeId, ctx, e.getValue());
+                            }
+                        }, e.getKey());
+                    }
+                }
+                else {
+                    ctx.asyncCallbackPool().execute(new Runnable() {
+                        @Override public void run() {
+                            notifyCallback0(nodeId, ctx, entries);
+                        }
+                    }, entries.iterator().next().partition());
+                }
             }
             else
-                notifyCallback0(nodeId, ctx, ents);
+                notifyCallback0(nodeId, ctx, entries);
         }
     }
 

@@ -39,6 +39,7 @@ import org.apache.ignite.cache.CacheAtomicityMode;
 import org.apache.ignite.cache.CacheEntryEventSerializableFilter;
 import org.apache.ignite.cache.CacheEntryProcessor;
 import org.apache.ignite.cache.CacheMode;
+import org.apache.ignite.cache.CacheWriteSynchronizationMode;
 import org.apache.ignite.cache.query.ContinuousQuery;
 import org.apache.ignite.cache.query.QueryCursor;
 import org.apache.ignite.configuration.CacheConfiguration;
@@ -64,6 +65,7 @@ import static org.apache.ignite.cache.CacheAtomicityMode.ATOMIC;
 import static org.apache.ignite.cache.CacheAtomicityMode.TRANSACTIONAL;
 import static org.apache.ignite.cache.CacheMode.PARTITIONED;
 import static org.apache.ignite.cache.CacheMode.REPLICATED;
+import static org.apache.ignite.cache.CacheWriteSynchronizationMode.FULL_SYNC;
 import static org.apache.ignite.cache.CacheWriteSynchronizationMode.PRIMARY_SYNC;
 
 /**
@@ -136,7 +138,7 @@ public class CacheContinuousQueryOperationFromCallbackTest extends GridCommonAbs
      * @throws Exception If failed.
      */
     public void testAtomicTwoBackups() throws Exception {
-        CacheConfiguration<Object, Object> ccfg = cacheConfiguration(PARTITIONED, 2, ATOMIC);
+        CacheConfiguration<Object, Object> ccfg = cacheConfiguration(PARTITIONED, 2, ATOMIC, FULL_SYNC);
 
         doTest(ccfg, true);
     }
@@ -145,7 +147,16 @@ public class CacheContinuousQueryOperationFromCallbackTest extends GridCommonAbs
      * @throws Exception If failed.
      */
     public void testAtomicReplicatedFilter() throws Exception {
-        CacheConfiguration<Object, Object> ccfg = cacheConfiguration(REPLICATED, 0, ATOMIC);
+        CacheConfiguration<Object, Object> ccfg = cacheConfiguration(REPLICATED, 0, ATOMIC, FULL_SYNC);
+
+        doTest(ccfg, false);
+    }
+
+    /**
+     * @throws Exception If failed.
+     */
+    public void testAtomicReplicatedFilterPrimary() throws Exception {
+        CacheConfiguration<Object, Object> ccfg = cacheConfiguration(REPLICATED, 0, ATOMIC, PRIMARY_SYNC);
 
         doTest(ccfg, false);
     }
@@ -154,7 +165,16 @@ public class CacheContinuousQueryOperationFromCallbackTest extends GridCommonAbs
      * @throws Exception If failed.
      */
     public void testAtomicTwoBackupsFilter() throws Exception {
-        CacheConfiguration<Object, Object> ccfg = cacheConfiguration(PARTITIONED, 2, ATOMIC);
+        CacheConfiguration<Object, Object> ccfg = cacheConfiguration(PARTITIONED, 2, ATOMIC, FULL_SYNC);
+
+        doTest(ccfg, false);
+    }
+
+    /**
+     * @throws Exception If failed.
+     */
+    public void testAtomicTwoBackupsFilterPrimary() throws Exception {
+        CacheConfiguration<Object, Object> ccfg = cacheConfiguration(PARTITIONED, 2, ATOMIC, PRIMARY_SYNC);
 
         doTest(ccfg, false);
     }
@@ -163,7 +183,7 @@ public class CacheContinuousQueryOperationFromCallbackTest extends GridCommonAbs
      * @throws Exception If failed.
      */
     public void testAtomicWithoutBackupsFilter() throws Exception {
-        CacheConfiguration<Object, Object> ccfg = cacheConfiguration(PARTITIONED, 0, ATOMIC);
+        CacheConfiguration<Object, Object> ccfg = cacheConfiguration(PARTITIONED, 0, ATOMIC, FULL_SYNC);
 
         doTest(ccfg, false);
     }
@@ -172,7 +192,16 @@ public class CacheContinuousQueryOperationFromCallbackTest extends GridCommonAbs
      * @throws Exception If failed.
      */
     public void testTxTwoBackupsFilter() throws Exception {
-        CacheConfiguration<Object, Object> ccfg = cacheConfiguration(PARTITIONED, 2, TRANSACTIONAL);
+        CacheConfiguration<Object, Object> ccfg = cacheConfiguration(PARTITIONED, 2, TRANSACTIONAL, FULL_SYNC);
+
+        doTest(ccfg, false);
+    }
+
+    /**
+     * @throws Exception If failed.
+     */
+    public void testTxTwoBackupsFilterPrimary() throws Exception {
+        CacheConfiguration<Object, Object> ccfg = cacheConfiguration(PARTITIONED, 2, TRANSACTIONAL, PRIMARY_SYNC);
 
         doTest(ccfg, false);
     }
@@ -181,7 +210,7 @@ public class CacheContinuousQueryOperationFromCallbackTest extends GridCommonAbs
      * @throws Exception If failed.
      */
     public void testTxReplicatedFilter() throws Exception {
-        CacheConfiguration<Object, Object> ccfg = cacheConfiguration(REPLICATED, 0, TRANSACTIONAL);
+        CacheConfiguration<Object, Object> ccfg = cacheConfiguration(REPLICATED, 0, TRANSACTIONAL, FULL_SYNC);
 
         doTest(ccfg, false);
     }
@@ -190,7 +219,7 @@ public class CacheContinuousQueryOperationFromCallbackTest extends GridCommonAbs
      * @throws Exception If failed.
      */
     public void testTxTwoBackup() throws Exception {
-        CacheConfiguration<Object, Object> ccfg = cacheConfiguration(PARTITIONED, 2, TRANSACTIONAL);
+        CacheConfiguration<Object, Object> ccfg = cacheConfiguration(PARTITIONED, 2, TRANSACTIONAL, FULL_SYNC);
 
         doTest(ccfg, true);
     }
@@ -199,7 +228,16 @@ public class CacheContinuousQueryOperationFromCallbackTest extends GridCommonAbs
      * @throws Exception If failed.
      */
     public void testTxReplicated() throws Exception {
-        CacheConfiguration<Object, Object> ccfg = cacheConfiguration(REPLICATED, 2, TRANSACTIONAL);
+        CacheConfiguration<Object, Object> ccfg = cacheConfiguration(REPLICATED, 2, TRANSACTIONAL, FULL_SYNC);
+
+        doTest(ccfg, true);
+    }
+
+    /**
+     * @throws Exception If failed.
+     */
+    public void testTxReplicatedPrimary() throws Exception {
+        CacheConfiguration<Object, Object> ccfg = cacheConfiguration(REPLICATED, 2, TRANSACTIONAL, PRIMARY_SYNC);
 
         doTest(ccfg, true);
     }
@@ -223,7 +261,7 @@ public class CacheContinuousQueryOperationFromCallbackTest extends GridCommonAbs
 
             final AtomicInteger cbCntr = new AtomicInteger(0);
 
-            final int threadCnt = 10;
+            final int threadCnt = IgniteConfiguration.DFLT_SYSTEM_CORE_THREAD_CNT * 2;
 
             for (int idx = 0; idx < NODES; idx++) {
                 Set<T2<QueryTestKey, QueryTestValue>> evts = Collections.
@@ -306,12 +344,14 @@ public class CacheContinuousQueryOperationFromCallbackTest extends GridCommonAbs
             if (fromLsnr) {
                 final int expCnt = qryCntr.get() * NODES * KEYS_FROM_CALLBACK;
 
+                boolean condition = GridTestUtils.waitForCondition(new PA() {
+                    @Override public boolean apply() {
+                        return cbCntr.get() >= expCnt;
+                    }
+                }, TimeUnit.SECONDS.toMillis(60));
+
                 assertTrue("Failed to wait events [exp=" + expCnt + ", act=" + cbCntr.get() + "]",
-                    GridTestUtils.waitForCondition(new PA() {
-                        @Override public boolean apply() {
-                            return cbCntr.get() >= expCnt;
-                        }
-                }, TimeUnit.SECONDS.toMillis(60)));
+                    condition);
 
                 assertEquals(expCnt, cbCntr.get());
 
@@ -326,7 +366,7 @@ public class CacheContinuousQueryOperationFromCallbackTest extends GridCommonAbs
                     @Override public boolean apply() {
                         return filterCbCntr.get() >= expInvkCnt;
                     }
-                }, TimeUnit.SECONDS.toMillis(20));
+                }, TimeUnit.SECONDS.toMillis(60));
 
                 assertEquals(expInvkCnt, filterCbCntr.get());
 
@@ -511,18 +551,20 @@ public class CacheContinuousQueryOperationFromCallbackTest extends GridCommonAbs
      * @param cacheMode Cache mode.
      * @param backups Number of backups.
      * @param atomicityMode Cache atomicity mode.
+     * @param writeMode Write sync mode.
      * @return Cache configuration.
      */
     protected CacheConfiguration<Object, Object> cacheConfiguration(
         CacheMode cacheMode,
         int backups,
-        CacheAtomicityMode atomicityMode) {
+        CacheAtomicityMode atomicityMode,
+        CacheWriteSynchronizationMode writeMode) {
         CacheConfiguration<Object, Object> ccfg = new CacheConfiguration<>();
 
-        ccfg.setName("test-cache-" + atomicityMode + "-" + cacheMode + "-" + cacheMode + "-" + backups);
+        ccfg.setName("test-cache-" + atomicityMode + "-" + cacheMode + "-" + writeMode + "-" + backups);
         ccfg.setAtomicityMode(atomicityMode);
         ccfg.setCacheMode(cacheMode);
-        ccfg.setWriteSynchronizationMode(PRIMARY_SYNC);
+        ccfg.setWriteSynchronizationMode(writeMode);
         ccfg.setAtomicWriteOrderMode(PRIMARY);
 
         if (cacheMode == PARTITIONED)
