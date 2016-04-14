@@ -690,7 +690,7 @@ public class CacheContinuousQueryHandler<K, V> implements GridContinuousHandler 
         // Initial query entry or evicted entry. These events should be fired immediately.
         if (e.updateCounter() == -1L) {
             return !e.isFiltered() ? F.<CacheEntryEvent<? extends K, ? extends V>>asList(
-                    new CacheContinuousQueryEvent<K, V>(cache, cctx, e)) :
+                new CacheContinuousQueryEvent<K, V>(cache, cctx, e)) :
                 Collections.<CacheEntryEvent<? extends K, ? extends V>>emptyList();
         }
 
@@ -1403,16 +1403,16 @@ public class CacheContinuousQueryHandler<K, V> implements GridContinuousHandler 
      */
     private class ContinuousQueryAsyncClosure implements Runnable {
         /** */
-        private CacheContinuousQueryEvent<K, V> evt;
+        private final CacheContinuousQueryEvent<K, V> evt;
 
         /** */
-        private boolean primary;
+        private final boolean primary;
 
         /** */
-        private boolean recordIgniteEvt;
+        private final boolean recordIgniteEvt;
 
         /** */
-        private IgniteInternalFuture<?> fut;
+        private final IgniteInternalFuture<?> fut;
 
         /**
          * @param primary Primary flag.
@@ -1462,6 +1462,11 @@ public class CacheContinuousQueryHandler<K, V> implements GridContinuousHandler 
             }
 
             return true;
+        }
+
+        /** {@inheritDoc} */
+        public String toString() {
+            return S.toString(ContinuousQueryAsyncClosure.class, this);
         }
     }
 

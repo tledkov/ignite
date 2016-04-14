@@ -1651,10 +1651,9 @@ public class IgnitionEx {
                 0,
                 new LinkedBlockingQueue<Runnable>());
 
-            // Note that we do not pre-start threads here as continuous query pool may not be needed.
+            // Note that we do not pre-start threads here as this pool may not be needed.
             callbackExecSvc = new IgniteStripedThreadPoolExecutor(
                 cfg.getAsyncCallbackPoolSize(),
-                1,
                 cfg.getGridName(),
                 "callback");
 

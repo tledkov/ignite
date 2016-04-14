@@ -155,10 +155,6 @@ public class GridDhtAtomicUpdateRequest extends GridCacheMessage implements Grid
     @GridDirectTransient
     private List<Integer> partIds;
 
-    /** */
-    @GridDirectTransient
-    private List<CacheObject> locPrevVals;
-
     /** Keep binary flag. */
     private boolean keepBinary;
 
@@ -513,16 +509,6 @@ public class GridDhtAtomicUpdateRequest extends GridCacheMessage implements Grid
             return prevVals.get(idx);
 
         return null;
-    }
-
-    /**
-     * @param idx Key index.
-     * @return Value.
-     */
-    @Nullable public CacheObject localPreviousValue(int idx) {
-        assert locPrevVals != null;
-
-        return locPrevVals.get(idx);
     }
 
     /**
@@ -1060,13 +1046,6 @@ public class GridDhtAtomicUpdateRequest extends GridCacheMessage implements Grid
     private void cleanup() {
         nearVals = null;
         prevVals = null;
-
-        // Do not keep values if they are not needed for continuous query notification.
-        if (locPrevVals == null) {
-            keys = null;
-            vals = null;
-            locPrevVals = null;
-        }
     }
 
     /** {@inheritDoc} */
