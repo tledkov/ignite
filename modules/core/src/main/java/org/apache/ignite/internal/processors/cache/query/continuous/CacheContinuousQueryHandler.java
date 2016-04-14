@@ -599,7 +599,7 @@ public class CacheContinuousQueryHandler<K, V> implements GridContinuousHandler 
                         if (entriesByPart == null) {
                             entriesByPart = new HashMap<>();
 
-                            entriesByPart.put(partId, entries.subList(0, i));
+                            entriesByPart.put(partId, new ArrayList<>(entries.subList(0, i)));
                         }
 
                         Collection<CacheContinuousQueryEntry> ents = entriesByPart.get(curPart);
