@@ -573,7 +573,7 @@ public class CacheContinuousQueryHandler<K, V> implements GridContinuousHandler 
     @SuppressWarnings("unchecked")
     @Override public void notifyCallback(final UUID nodeId,
         final UUID routineId,
-        List<?> objs,
+        Collection<?> objs,
         final GridKernalContext ctx) {
         assert nodeId != null;
         assert routineId != null;

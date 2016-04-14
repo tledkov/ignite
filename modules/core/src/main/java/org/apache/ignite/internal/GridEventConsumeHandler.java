@@ -21,8 +21,8 @@ import java.io.Externalizable;
 import java.io.IOException;
 import java.io.ObjectInput;
 import java.io.ObjectOutput;
+import java.util.Collection;
 import java.util.LinkedList;
-import java.util.List;
 import java.util.Map;
 import java.util.Queue;
 import java.util.UUID;
@@ -301,7 +301,7 @@ class GridEventConsumeHandler implements GridContinuousHandler {
      * @param nodeId Node ID.
      * @param objs Notification objects.
      */
-    @Override public void notifyCallback(UUID nodeId, UUID routineId, List<?> objs, GridKernalContext ctx) {
+    @Override public void notifyCallback(UUID nodeId, UUID routineId, Collection<?> objs, GridKernalContext ctx) {
         assert nodeId != null;
         assert routineId != null;
         assert objs != null;
