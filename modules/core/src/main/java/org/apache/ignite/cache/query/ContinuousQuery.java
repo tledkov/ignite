@@ -175,10 +175,11 @@ public final class ContinuousQuery<K, V> extends Query<Cache.Entry<K, V>> {
      * synchronization or transactional cache operations), should be executed asynchronously without
      * blocking the thread that called the callback. Otherwise, you can get deadlocks.
      * * <p>
-     * If listener implements {@link IgniteAsyncCallback} marker interface then cache operations are allowed.
-     * see {@link IgniteAsyncCallback}.
+     * If listener has {@link IgniteAsyncCallback} annotation then cache operations are allowed.
+     *
      *
      * @param locLsnr Local callback.
+     * @see IgniteAsyncCallback
      * @return {@code this} for chaining.
      */
     public ContinuousQuery<K, V> setLocalListener(CacheEntryUpdatedListener<K, V> locLsnr) {
@@ -232,10 +233,10 @@ public final class ContinuousQuery<K, V> extends Query<Cache.Entry<K, V>> {
      * (e.g., synchronization or transactional cache operations), should be executed asynchronously
      * without blocking the thread that called the filter. Otherwise, you can get deadlocks.
      * <p>
-     * If filter implements {@link IgniteAsyncCallback} marker interface then cache operations are allowed.
-     * see {@link IgniteAsyncCallback}.
+     * If filter has {@link IgniteAsyncCallback} annotation then cache operations are allowed.
      *
      * @param rmtFilterFactory Key-value filter factory.
+     * @see IgniteAsyncCallback
      * @return {@code this} for chaining.
      */
     public ContinuousQuery<K, V> setRemoteFilterFactory(

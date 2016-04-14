@@ -18,7 +18,7 @@
 package org.apache.ignite.internal.processors.continuous;
 
 import java.io.Externalizable;
-import java.util.Collection;
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import org.apache.ignite.IgniteCheckedException;
@@ -80,7 +80,7 @@ public interface GridContinuousHandler extends Externalizable, Cloneable {
      * @param objs Notification objects.
      * @param ctx Kernal context.
      */
-    public void notifyCallback(UUID nodeId, UUID routineId, Collection<?> objs, GridKernalContext ctx);
+    public void notifyCallback(UUID nodeId, UUID routineId, List<?> objs, GridKernalContext ctx);
 
     /**
      * Deploys and marshals inner objects (called only if peer deployment is enabled).

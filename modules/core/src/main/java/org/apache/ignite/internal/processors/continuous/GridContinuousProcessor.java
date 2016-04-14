@@ -27,6 +27,7 @@ import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentMap;
@@ -963,7 +964,7 @@ public class GridContinuousProcessor extends GridProcessorAdapter {
             LocalRoutineInfo routine = locInfos.get(routineId);
 
             if (routine != null)
-                routine.hnd.notifyCallback(nodeId, routineId, (Collection<?>)msg.data(), ctx);
+                routine.hnd.notifyCallback(nodeId, routineId, (List<?>)msg.data(), ctx);
         }
         finally {
             if (msg.futureId() != null) {

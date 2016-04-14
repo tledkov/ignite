@@ -573,47 +573,65 @@ public class CacheContinuousQueryHandler<K, V> implements GridContinuousHandler 
     @SuppressWarnings("unchecked")
     @Override public void notifyCallback(final UUID nodeId,
         final UUID routineId,
-        Collection<?> objs,
+        List<?> objs,
         final GridKernalContext ctx) {
         assert nodeId != null;
         assert routineId != null;
         assert objs != null;
         assert ctx != null;
 
-        final Collection<CacheContinuousQueryEntry> entries = (Collection<CacheContinuousQueryEntry>)objs;
+        final List<CacheContinuousQueryEntry> entries = (List<CacheContinuousQueryEntry>)objs;
 
         if (!entries.isEmpty()) {
             if (asyncCallback) {
-                if (entries.size() != 1) {
-                    Map<Integer, Collection<CacheContinuousQueryEntry>> entriesByPart = new HashMap<>();
+                int partId = entries.get(0).partition();
 
-                    for (CacheContinuousQueryEntry e : entries) {
-                        Collection<CacheContinuousQueryEntry> ents = entriesByPart.get(e.partition());
+                if (entries.size() != 1) {
+                    Map<Integer, Collection<CacheContinuousQueryEntry>> entriesByPart = null;
+
+                    for (int i = 0; i < entries.size(); i++) {
+                        int curPart = entries.get(i).partition();
+
+                        // If all entries from one partition avoid creation new collections.
+                        if (curPart == partId && entriesByPart == null)
+                            continue;
+
+                        if (entriesByPart == null) {
+                            entriesByPart = new HashMap<>();
+
+                            entriesByPart.put(partId, entries.subList(0, i));
+                        }
+
+                        Collection<CacheContinuousQueryEntry> ents = entriesByPart.get(curPart);
 
                         if (ents == null) {
-                            ents = new ArrayList<>(entries.size());
+                            ents = new ArrayList<>(entries.size() - i);
 
-                            entriesByPart.put(e.partition(), ents);
+                            entriesByPart.put(curPart, ents);
                         }
 
-                        ents.add(e);
+                        ents.add(entries.get(i));
                     }
 
-                    for (final Map.Entry<Integer, Collection<CacheContinuousQueryEntry>> e : entriesByPart.entrySet()) {
-                        ctx.asyncCallbackPool().execute(new Runnable() {
-                            @Override public void run() {
-                                notifyCallback0(nodeId, ctx, e.getValue());
-                            }
-                        }, e.getKey());
+                    if (entriesByPart != null) {
+                        for (final Map.Entry<Integer, Collection<CacheContinuousQueryEntry>> e :
+                            entriesByPart.entrySet()) {
+                            ctx.asyncCallbackPool().execute(new Runnable() {
+                                @Override public void run() {
+                                    notifyCallback0(nodeId, ctx, e.getValue());
+                                }
+                            }, e.getKey());
+                        }
+
+                        return;
                     }
                 }
-                else {
-                    ctx.asyncCallbackPool().execute(new Runnable() {
-                        @Override public void run() {
-                            notifyCallback0(nodeId, ctx, entries);
-                        }
-                    }, entries.iterator().next().partition());
-                }
+
+                ctx.asyncCallbackPool().execute(new Runnable() {
+                    @Override public void run() {
+                        notifyCallback0(nodeId, ctx, entries);
+                    }
+                }, partId);
             }
             else
                 notifyCallback0(nodeId, ctx, entries);

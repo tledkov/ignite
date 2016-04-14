@@ -32,8 +32,10 @@ import org.apache.ignite.configuration.IgniteConfiguration;
  * annotated this annotation then they will be executing on a separate thread pool. It allows
  * to use cache API in a callbacks.
  * <p/>
- * Different implementations can use different thread pools. For example continuous query will use continuous query
- * thread poll which can be configured by {@link IgniteConfiguration#setAsyncCallbackPoolSize(int)}
+ * For executing callbacks using callback thread pool which can be configured by
+ * {@link IgniteConfiguration#setAsyncCallbackPoolSize(int)}
+ *
+ * @see IgniteConfiguration#setAsyncCallbackPoolSize(int)
  */
 @Retention(RetentionPolicy.RUNTIME)
 @Target(ElementType.TYPE)
