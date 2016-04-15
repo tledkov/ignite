@@ -105,6 +105,7 @@ public class CacheContinuousAsyncQueryExample {
                     Thread.sleep(2000);
                 }
 
+                // Iterate through entries which was updated from filter.
                 for (int i = 0; i < 10; i++)
                     System.out.println("Entry updated from filter [key=" + i + ", val=" + cache.get(i) + ']');
             }
