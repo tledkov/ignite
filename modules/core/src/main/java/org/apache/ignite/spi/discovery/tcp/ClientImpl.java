@@ -778,6 +778,11 @@ class ClientImpl extends TcpDiscoveryImpl {
         return msgWorker;
     }
 
+    /** {@inheritDoc} */
+    @Override protected Boolean workerThreadStoppedAbnormally() {
+        return false;
+    }
+
     /**
      * FOR TEST PURPOSE ONLY!
      */

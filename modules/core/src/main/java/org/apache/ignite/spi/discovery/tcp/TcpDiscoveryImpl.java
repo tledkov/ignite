@@ -255,6 +255,13 @@ abstract class TcpDiscoveryImpl {
     protected abstract IgniteSpiThread workerThread();
 
     /**
+     * <strong>FOR TEST ONLY!!!</strong>
+     *
+     * @return {@code true} if the worker Thread has been stopped abnormally.
+     */
+    protected abstract Boolean workerThreadStoppedAbnormally();
+
+    /**
      * @throws IgniteSpiException If failed.
      */
     @SuppressWarnings("BusyWait")

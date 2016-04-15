@@ -1524,6 +1524,11 @@ class ServerImpl extends TcpDiscoveryImpl {
         return msgWorker;
     }
 
+    /** {@inheritDoc} */
+    @Override protected Boolean workerThreadStoppedAbnormally() {
+        return msgWorker.stoppedAbnormally;
+    }
+
     /**
      * <strong>FOR TEST ONLY!!!</strong>
      * <p>
@@ -2132,6 +2137,9 @@ class ServerImpl extends TcpDiscoveryImpl {
         /** Force pending messages send. */
         private boolean forceSndPending;
 
+        /** FOR TESTS ONLY. Used to check whether the worker has been stopped abnormally. */
+        private volatile Boolean stoppedAbnormally;
+
         /** Socket. */
         private Socket sock;
 
@@ -2177,12 +2185,16 @@ class ServerImpl extends TcpDiscoveryImpl {
         @Override protected void body() throws InterruptedException {
             try {
                 super.body();
+
+                stoppedAbnormally = false;
             }
             catch (Throwable e) {
-                if (!spi.isNodeStopping0()) {
-                    final Ignite ignite = spi.ignite();
+                if (!spi.isNodeStopping0() && spiStateCopy() != DISCONNECTING) {
+                        final Ignite ignite = spi.ignite();
 
                     if (ignite != null) {
+                        stoppedAbnormally = true;
+
                         U.error(log, "TcpDiscoverSpi's message worker thread failed abnormally. " +
                             "Stopping the node in order to prevent cluster wide instability.", e);
 
@@ -2202,6 +2214,8 @@ class ServerImpl extends TcpDiscoveryImpl {
                         }, "node-stop-thread").start();
                     }
                 }
+                else
+                    stoppedAbnormally = false;
 
                 // Must be processed by IgniteSpiThread as well.
                 throw e;

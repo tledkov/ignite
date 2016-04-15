@@ -188,6 +188,10 @@ public class TcpDiscoverySelfTest extends GridCommonAbstractTest {
         }
         else if (gridName.contains("testPingInterruptedOnNodeFailedPingingNode"))
             cfg.setFailureDetectionTimeout(30_000);
+        else if (gridName.contains("testNoRingMessageWorkerAbnormalFailureNormalNode"))
+            cfg.setFailureDetectionTimeout(3_000);
+        else if (gridName.contains("testNoRingMessageWorkerAbnormalFailureSegmentedNode"))
+            cfg.setFailureDetectionTimeout(6_000);
 
         return cfg;
     }
@@ -1355,7 +1359,8 @@ public class TcpDiscoverySelfTest extends GridCommonAbstractTest {
      */
     public void testNodeShutdownOnRingMessageWorkerFailure() throws Exception {
         try {
-            TestMessageWorkerFailureSpi1 spi0 = new TestMessageWorkerFailureSpi1();
+            TestMessageWorkerFailureSpi1 spi0 = new TestMessageWorkerFailureSpi1(
+                TestMessageWorkerFailureSpi1.EXCEPTION_MODE);
 
             nodeSpi.set(spi0);
 
@@ -1389,20 +1394,109 @@ public class TcpDiscoverySelfTest extends GridCommonAbstractTest {
 
             assertTrue(disconnected.get());
 
-            try {
-                ignite0.cluster().localNode().id();
-            }
-            catch (IllegalStateException e) {
-                if (e.getMessage().contains("Grid is in invalid state to perform this operation"))
-                    return;
-            }
+            GridTestUtils.waitForCondition(new GridAbsPredicate() {
+                @Override public boolean apply() {
+                    Boolean stoppedAbnormally = spi0.stoppedAbnormally();
 
-            fail();
+                    return stoppedAbnormally != null && stoppedAbnormally;
+                }
+            }, 10_000);
+
+            Boolean stoppedAbnormally = spi0.stoppedAbnormally();
+
+            assertTrue(stoppedAbnormally != null && stoppedAbnormally);
         }
         finally {
             stopAllGrids();
         }
     }
+
+    /**
+     * @throws Exception If failed
+     */
+    public void testNoRingMessageWorkerAbnormalFailureOnSegmentation() throws Exception {
+        try {
+            TestMessageWorkerFailureSpi1 spi1 = new TestMessageWorkerFailureSpi1(
+                TestMessageWorkerFailureSpi1.SEGMENTATION_MODE);
+
+            nodeSpi.set(spi1);
+
+            Ignite ignite1 = startGrid("testNoRingMessageWorkerAbnormalFailureNormalNode");
+
+
+            TestMessageWorkerFailureSpi3 spi2 = new TestMessageWorkerFailureSpi3();
+
+            nodeSpi.set(spi2);
+
+            final Ignite ignite2 = startGrid("testNoRingMessageWorkerAbnormalFailureSegmentedNode");
+
+
+            final AtomicBoolean disconnected = new AtomicBoolean();
+
+            final AtomicBoolean segmented = new AtomicBoolean();
+
+            final CountDownLatch disLatch = new CountDownLatch(1);
+
+            final CountDownLatch segLatch = new CountDownLatch(1);
+
+            final UUID failedNodeId = ignite2.cluster().localNode().id();
+
+            ignite1.events().localListen(new IgnitePredicate<Event>() {
+                @Override public boolean apply(Event evt) {
+                    if (evt.type() == EventType.EVT_NODE_FAILED &&
+                        failedNodeId.equals(((DiscoveryEvent)evt).eventNode().id()))
+                        disconnected.set(true);
+
+                    disLatch.countDown();
+
+                    return false;
+                }
+            }, EventType.EVT_NODE_FAILED);
+
+            ignite2.events().localListen(new IgnitePredicate<Event>() {
+                @Override public boolean apply(Event evt) {
+                    if (evt.type() == EventType.EVT_NODE_SEGMENTED &&
+                        failedNodeId.equals(((DiscoveryEvent)evt).eventNode().id()))
+                        segmented.set(true);
+
+                    segLatch.countDown();
+
+                    return false;
+                }
+            }, EventType.EVT_NODE_SEGMENTED);
+
+
+            spi1.stop = true;
+
+            disLatch.await(15, TimeUnit.SECONDS);
+
+            assertTrue(disconnected.get());
+
+
+            spi1.stop = false;
+
+            segLatch.await(15, TimeUnit.SECONDS);
+
+            assertTrue(segmented.get());
+
+
+            GridTestUtils.waitForCondition(new GridAbsPredicate() {
+                @Override public boolean apply() {
+                    Boolean stoppedAbnormally = spi2.stoppedAbnormally();
+
+                    return stoppedAbnormally != null && !stoppedAbnormally;
+                }
+            }, 10_000);
+
+            Boolean stoppedAbnormally = spi2.stoppedAbnormally();
+
+            assertTrue(stoppedAbnormally != null && !stoppedAbnormally);
+        }
+        finally {
+            stopAllGrids();
+        }
+    }
+
     /**
      * @throws Exception If failed
      */
@@ -2069,16 +2163,43 @@ public class TcpDiscoverySelfTest extends GridCommonAbstractTest {
     /**
      *
      */
-    private static class TestMessageWorkerFailureSpi1 extends TcpDiscoverySpi {
+    private static class TestMessageWorkerFailureSpi1 extends TestMessageWorkerFailureSpi3 {
+        /** */
+        private static int EXCEPTION_MODE = 0;
+
+        /** */
+        private static int SEGMENTATION_MODE = 1;
+
+        /** */
+        private final int failureMode;
+
         /** */
         private volatile boolean stop;
+
+        /**
+         * @param failureMode Failure mode to use during the test.
+         */
+        public TestMessageWorkerFailureSpi1(int failureMode) {
+            this.failureMode = failureMode;
+        }
 
         /** {@inheritDoc} */
         @Override protected void writeToSocket(Socket sock, OutputStream out, TcpDiscoveryAbstractMessage msg,
             long timeout) throws IOException, IgniteCheckedException {
 
-            if (stop)
-                throw new RuntimeException("Failing ring message worker explicitly");
+            if (stop) {
+                if (failureMode == EXCEPTION_MODE)
+                    throw new RuntimeException("Failing ring message worker explicitly");
+                else {
+                    try {
+                        Thread.sleep(5_000);
+                    }
+                    catch (InterruptedException e) {
+                        // Ignore.
+                    }
+                }
+
+            }
 
             super.writeToSocket(sock, out, msg, timeout);
         }
@@ -2101,6 +2222,17 @@ public class TcpDiscoverySelfTest extends GridCommonAbstractTest {
 
             if (msg instanceof TcpDiscoveryNodeAddedMessage)
                 stop = true;
+        }
+    }
+
+    private static class TestMessageWorkerFailureSpi3 extends TcpDiscoverySpi {
+        /**
+         * Checks if the worker thread has been stopped abnormally.
+         *
+         * @return {@code true} if the worker thread has been stopped abnormally.
+         */
+        Boolean stoppedAbnormally() {
+            return impl.workerThreadStoppedAbnormally();
         }
     }
 
