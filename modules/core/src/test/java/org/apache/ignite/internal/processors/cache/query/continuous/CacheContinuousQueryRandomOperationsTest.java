@@ -808,7 +808,6 @@ public class CacheContinuousQueryRandomOperationsTest extends GridCommonAbstract
         }
     }
 
-
     /**
      * @param event Event.
      * @param type Event type.
