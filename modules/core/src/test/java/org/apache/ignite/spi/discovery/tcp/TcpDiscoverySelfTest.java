@@ -1359,7 +1359,7 @@ public class TcpDiscoverySelfTest extends GridCommonAbstractTest {
      */
     public void testNodeShutdownOnRingMessageWorkerFailure() throws Exception {
         try {
-            TestMessageWorkerFailureSpi1 spi0 = new TestMessageWorkerFailureSpi1(
+            final TestMessageWorkerFailureSpi1 spi0 = new TestMessageWorkerFailureSpi1(
                 TestMessageWorkerFailureSpi1.EXCEPTION_MODE);
 
             nodeSpi.set(spi0);
@@ -1424,7 +1424,7 @@ public class TcpDiscoverySelfTest extends GridCommonAbstractTest {
             Ignite ignite1 = startGrid("testNoRingMessageWorkerAbnormalFailureNormalNode");
 
 
-            TestMessageWorkerFailureSpi3 spi2 = new TestMessageWorkerFailureSpi3();
+            final TestMessageWorkerFailureSpi3 spi2 = new TestMessageWorkerFailureSpi3();
 
             nodeSpi.set(spi2);
 
