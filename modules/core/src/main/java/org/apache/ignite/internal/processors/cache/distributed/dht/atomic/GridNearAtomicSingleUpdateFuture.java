@@ -128,7 +128,8 @@ public class GridNearAtomicSingleUpdateFuture extends GridNearAtomicAbstractUpda
         GridNearAtomicUpdateResponse res = null;
 
         synchronized (mux) {
-            GridNearAtomicUpdateRequest req = this.req.nodeId().equals(nodeId) ? this.req : null;
+            GridNearAtomicUpdateRequest req = this.req != null && this.req.nodeId().equals(nodeId) ?
+                this.req : null;
 
             if (req != null && req.response() == null) {
                 res = new GridNearAtomicUpdateResponse(cctx.cacheId(),
