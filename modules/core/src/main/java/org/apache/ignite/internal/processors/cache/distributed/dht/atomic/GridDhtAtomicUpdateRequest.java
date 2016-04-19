@@ -248,7 +248,8 @@ public class GridDhtAtomicUpdateRequest extends GridCacheMessage implements Grid
         boolean addPrevVal,
         int partId,
         @Nullable CacheObject prevVal,
-        @Nullable Long updateCntr) {
+        @Nullable Long updateCntr
+    ) {
         keys.add(key);
 
         partIds.add(partId);

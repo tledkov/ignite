@@ -957,9 +957,11 @@ public class CacheContinuousQueryHandler<K, V> implements GridContinuousHandler 
          * @param entry Cache continuous query entry.
          * @return Collection entries which will be fired. This collection should contains only non-filtered events.
          */
-        <K, V> Collection<CacheEntryEvent<? extends K, ? extends V>> collectEntries(CacheContinuousQueryEntry entry,
+        <K, V> Collection<CacheEntryEvent<? extends K, ? extends V>> collectEntries(
+            CacheContinuousQueryEntry entry,
             GridCacheContext cctx,
-            IgniteCache cache) {
+            IgniteCache cache
+        ) {
             assert entry != null;
 
             if (entry.topologyVersion() == null) { // Possible if entry is sent from old node.

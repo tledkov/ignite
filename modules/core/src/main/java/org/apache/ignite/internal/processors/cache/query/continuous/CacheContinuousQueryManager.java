@@ -242,7 +242,8 @@ public class CacheContinuousQueryManager extends GridCacheManagerAdapter {
         boolean preload,
         long updateCntr,
         @Nullable GridDhtAtomicUpdateFuture fut,
-        AffinityTopologyVersion topVer) throws IgniteCheckedException {
+        AffinityTopologyVersion topVer
+    ) throws IgniteCheckedException {
         Map<UUID, CacheContinuousQueryListener> lsnrCol = updateListeners(internal, preload);
 
         if (lsnrCol != null) {

@@ -174,13 +174,13 @@ public final class ContinuousQuery<K, V> extends Query<Cache.Entry<K, V>> {
      * <b>WARNING:</b> all operations that involve any kind of JVM-local or distributed locking (e.g.,
      * synchronization or transactional cache operations), should be executed asynchronously without
      * blocking the thread that called the callback. Otherwise, you can get deadlocks.
-     * * <p>
+     * <p>
      * If listener has {@link IgniteAsyncCallback} annotation then cache operations are allowed.
      *
      *
      * @param locLsnr Local callback.
-     * @see IgniteAsyncCallback
      * @return {@code this} for chaining.
+     * @see IgniteAsyncCallback
      */
     public ContinuousQuery<K, V> setLocalListener(CacheEntryUpdatedListener<K, V> locLsnr) {
         this.locLsnr = locLsnr;
@@ -236,8 +236,8 @@ public final class ContinuousQuery<K, V> extends Query<Cache.Entry<K, V>> {
      * If filter has {@link IgniteAsyncCallback} annotation then cache operations are allowed.
      *
      * @param rmtFilterFactory Key-value filter factory.
-     * @see IgniteAsyncCallback
      * @return {@code this} for chaining.
+     * @see IgniteAsyncCallback
      */
     public ContinuousQuery<K, V> setRemoteFilterFactory(
         Factory<? extends CacheEntryEventFilter<K, V>> rmtFilterFactory) {

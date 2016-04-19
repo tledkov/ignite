@@ -57,7 +57,7 @@ class CacheContinuousQueryEvent<K, V> extends CacheQueryEntryEvent<K, V> {
     }
 
     /**
-     * @return Partition id.
+     * @return Partition ID.
      */
     public int partitionId() {
         return e.partition();

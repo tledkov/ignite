@@ -26,7 +26,8 @@ import static org.apache.ignite.cache.CacheAtomicWriteOrderMode.PRIMARY;
 /**
  *
  */
-public class CacheContinuousQueryAsyncFailoverAtomicPrimaryWriteOrderSelfTest extends CacheContinuousQueryFailoverAbstractSelfTest {
+public class CacheContinuousQueryAsyncFailoverAtomicPrimaryWriteOrderSelfTest
+    extends CacheContinuousQueryFailoverAbstractSelfTest {
     /** {@inheritDoc} */
     @Override protected CacheAtomicWriteOrderMode writeOrderMode() {
         return PRIMARY;
