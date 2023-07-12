@@ -17,12 +17,12 @@
 
 package org.apache.ignite.ssl;
 
+import java.io.FileInputStream;
+import java.io.FileNotFoundException;
+import java.io.IOException;
+import java.io.InputStream;
 import java.security.GeneralSecurityException;
 import java.security.KeyStore;
-import java.security.NoSuchAlgorithmException;
-import java.util.Arrays;
-import javax.net.ssl.KeyManager;
-import javax.net.ssl.KeyManagerFactory;
 import javax.net.ssl.SSLContext;
 import javax.net.ssl.SSLException;
 import javax.net.ssl.TrustManager;
@@ -56,14 +56,10 @@ public class SslContextFactory extends AbstractSslContextFactory {
     /** Default key manager / trust manager algorithm. Specifying different trust manager algorithm is not supported. */
     public static final String DFLT_KEY_ALGORITHM = AbstractSslContextFactory.DFLT_KEY_ALGORITHM;
 
-    /** Key store type. */
-    protected String keyStoreType = DFLT_STORE_TYPE;
-
-    /** Path to key store file */
-    protected String keyStoreFilePath;
-
-    /** Key store password */
-    protected char[] keyStorePwd;
+    /** */
+    public SslContextFactory() {
+        super(new FileBasedKeyManagersFactory(), new FileBasedTrustManagersFactory());
+    }
 
     /**
      * Gets key store type used for context creation.
@@ -71,7 +67,7 @@ public class SslContextFactory extends AbstractSslContextFactory {
      * @return Key store type.
      */
     public String getKeyStoreType() {
-        return keyStoreType;
+        return ((FileBasedKeyManagersFactory) keyManagersFactory).getKeyStoreType();
     }
 
     /**
@@ -83,7 +79,7 @@ public class SslContextFactory extends AbstractSslContextFactory {
     public void setKeyStoreType(String keyStoreType) {
         A.notNull(keyStoreType, "keyStoreType");
 
-        this.keyStoreType = keyStoreType;
+        ((FileBasedKeyManagersFactory) keyManagersFactory).setKeyStoreType(keyStoreType);
     }
 
     /**
@@ -92,7 +88,7 @@ public class SslContextFactory extends AbstractSslContextFactory {
      * @return Path to key store file.
      */
     public String getKeyStoreFilePath() {
-        return keyStoreFilePath;
+        return ((FileBasedKeyManagersFactory) keyManagersFactory).getKeyStoreFilePath();
     }
 
     /**
@@ -104,7 +100,7 @@ public class SslContextFactory extends AbstractSslContextFactory {
     public void setKeyStoreFilePath(String keyStoreFilePath) {
         A.notNull(keyStoreFilePath, "keyStoreFilePath");
 
-        this.keyStoreFilePath = keyStoreFilePath;
+        ((FileBasedKeyManagersFactory) keyManagersFactory).setKeyStoreFilePath(keyStoreFilePath);
     }
 
     /**
@@ -113,7 +109,7 @@ public class SslContextFactory extends AbstractSslContextFactory {
      * @return Key store password.
      */
     public char[] getKeyStorePassword() {
-        return keyStorePwd;
+        return ((AbstractKeyManagersFactory) keyManagersFactory).getKeyStorePassword();
     }
 
     /**
@@ -124,7 +120,65 @@ public class SslContextFactory extends AbstractSslContextFactory {
     public void setKeyStorePassword(char[] keyStorePwd) {
         A.notNull(keyStorePwd, "keyStorePwd");
 
-        this.keyStorePwd = keyStorePwd;
+        ((AbstractKeyManagersFactory) keyManagersFactory).setKeyStorePassword(keyStorePwd);
+    }
+
+    /**
+     * Gets trust store type used for context creation.
+     *
+     * @return trust store type.
+     */
+    public String getTrustStoreType() {
+        return ((FileBasedTrustManagersFactory) trustManagersFactory).getTrustStoreType();
+    }
+
+    /**
+     * Sets trust store type used in context initialization. If not provided, {@link #DFLT_STORE_TYPE} will
+     * be used.
+     *
+     * @param trustStoreType Trust store type.
+     */
+    public void setTrustStoreType(String trustStoreType) {
+        A.notNull(trustStoreType, "trustStoreType");
+
+        ((FileBasedTrustManagersFactory) trustManagersFactory).setTrustStoreType(trustStoreType);
+    }
+
+    /**
+     * Gets path to the trust store file.
+     *
+     * @return Path to the trust store file.
+     */
+    public String getTrustStoreFilePath() {
+        return ((FileBasedTrustManagersFactory) trustManagersFactory).getTrustStoreFilePath();
+    }
+
+    /**
+     * Sets path to the trust store file. This is an optional parameter,
+     * however one of the {@code setTrustStoreFilePath(String)}, {@link #setTrustManagers(TrustManager[])}
+     * properties must be set.
+     *
+     * @param trustStoreFilePath Path to the trust store file.
+     */
+    public void setTrustStoreFilePath(String trustStoreFilePath) {
+        ((FileBasedTrustManagersFactory) trustManagersFactory).setTrustStoreFilePath(trustStoreFilePath);    }
+
+    /**
+     * Gets trust store password.
+     *
+     * @return Trust store password.
+     */
+    public char[] getTrustStorePassword() {
+        return ((FileBasedTrustManagersFactory) trustManagersFactory).getTrustStorePassword();
+    }
+
+    /**
+     * Sets trust store password.
+     *
+     * @param trustStorePwd Trust store password.
+     */
+    public void setTrustStorePassword(char[] trustStorePwd) {
+        ((FileBasedTrustManagersFactory) trustManagersFactory).setTrustStorePassword(trustStorePwd);
     }
 
     /**
@@ -136,44 +190,26 @@ public class SslContextFactory extends AbstractSslContextFactory {
         return new DisabledX509TrustManager();
     }
 
-    /** {@inheritDoc} */
-    @Override protected final KeyManager[] createKeyManagers() throws SSLException {
-        try {
-            KeyManagerFactory keyMgrFactory = KeyManagerFactory.getInstance(keyAlgorithm);
-
-            KeyStore keyStore = loadKeyStore(keyStoreType, keyStoreFilePath, keyStorePwd);
-
-            keyMgrFactory.init(keyStore, keyStorePwd);
-
-            return keyMgrFactory.getKeyManagers();
-        }
-        catch (NoSuchAlgorithmException e) {
-            throw new SSLException("Unsupported key algorithm: " + keyAlgorithm, e);
-        }
-        catch (GeneralSecurityException e) {
-            throw new SSLException("Failed to initialize Key Manager (security exception occurred) [type=" +
-                keyStoreType + ", keyStorePath=" + keyStoreFilePath + ']', e);
-        }
-    }
-
     /**
      * Builds human-readable string with factory parameters.
      *
      * @return Parameters string.
      */
     private String parameters() {
-        StringBuilder buf = new StringBuilder("[keyStoreType=").append(keyStoreType);
 
-        buf.append(", proto=").append(proto).append(", keyStoreFile=").append(keyStoreFilePath);
+        // TODO with factories
+//        StringBuilder buf = new StringBuilder("[keyStoreType=").append(keyStoreType);
+//
+//        buf.append(", proto=").append(proto).append(", keyStoreFile=").append(keyStoreFilePath);
 
-        if (trustMgrs != null)
-            buf.append(", trustMgrs=").append(Arrays.toString(trustMgrs));
-        else
-            buf.append(", trustStoreFile=").append(trustStoreFilePath);
+//        if (trustMgrs != null)
+//            buf.append(", trustMgrs=").append(Arrays.toString(trustMgrs));
+//        else
+//            buf.append(", trustStoreFile=").append(trustStoreFilePath);
+//
+//        buf.append(']');
 
-        buf.append(']');
-
-        return buf.toString();
+        return "";
     }
 
     /**
@@ -181,24 +217,209 @@ public class SslContextFactory extends AbstractSslContextFactory {
      *
      * @throws SSLException If any of required parameters is missing.
      */
-    @Override protected void checkParameters() throws SSLException {
-        assert keyStoreType != null;
-        assert proto != null;
+    @Override
+    protected void checkParameters() throws SSLException {
+        // TODO in factories
 
-        checkNullParameter(keyStoreFilePath, "keyStoreFilePath");
-        checkNullParameter(keyStorePwd, "keyStorePwd");
+//        assert keyStoreType != null;
+//        assert proto != null;
+//
+//        checkNullParameter(keyStoreFilePath, "keyStoreFilePath");
+//        checkNullParameter(keyStorePwd, "keyStorePwd");
+//
+//        if (trustMgrs == null) {
+//            if (trustStoreFilePath == null)
+//                throw new SSLException("Failed to initialize SSL context (either trustStoreFilePath or " +
+//                    "trustManagers must be provided)");
+//            else
+//                checkNullParameter(trustStorePwd, "trustStorePwd");
+//        }
+    }
 
-        if (trustMgrs == null) {
-            if (trustStoreFilePath == null)
-                throw new SSLException("Failed to initialize SSL context (either trustStoreFilePath or " +
-                    "trustManagers must be provided)");
-            else
-                checkNullParameter(trustStorePwd, "trustStorePwd");
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public String toString() {
+        return getClass().getSimpleName() + parameters();
+    }
+
+    /**
+     * Loads key store with configured parameters.
+     *
+     * @param keyStoreType  Type of key store.
+     * @param storeFilePath Path to key store file.
+     * @param keyStorePwd   Store password.
+     * @return Initialized key store.
+     * @throws SSLException If key store could not be initialized.
+     */
+    @Deprecated
+    protected KeyStore loadKeyStore(String keyStoreType, String storeFilePath, char[] keyStorePwd)
+        throws SSLException {
+        return loadKeyStoreFromFile(keyStoreType, storeFilePath, keyStorePwd);
+    }
+
+    /**
+     *
+     */
+    public static class FileBasedKeyManagersFactory extends AbstractKeyManagersFactory {
+        /**
+         * Key store type.
+         */
+        protected String keyStoreType = DFLT_STORE_TYPE;
+
+        /**
+         * Path to key store file
+         */
+        protected String keyStoreFilePath;
+
+        /**
+         * Key store password
+         */
+        protected char[] keyStorePwd;
+
+        @Override
+        protected KeyStore loadKeystore() throws SSLException {
+            return loadKeyStoreFromFile(keyStoreType, keyStoreFilePath, keyStorePwd);
+        }
+
+        /**
+         * Gets key store type used for context creation.
+         *
+         * @return Key store type.
+         */
+        public String getKeyStoreType() {
+            return keyStoreType;
+        }
+
+        /**
+         * Sets key store type used in context initialization. If not provided, {@link #DFLT_STORE_TYPE} will
+         * be used.
+         *
+         * @param keyStoreType Key store type.
+         */
+        public void setKeyStoreType(String keyStoreType) {
+            A.notNull(keyStoreType, "keyStoreType");
+
+            this.keyStoreType = keyStoreType;
+        }
+
+        /**
+         * Gets path to the key store file.
+         *
+         * @return Path to key store file.
+         */
+        public String getKeyStoreFilePath() {
+            return keyStoreFilePath;
+        }
+
+        /**
+         * Sets path to the key store file. This is a mandatory parameter since
+         * ssl context could not be initialized without key manager.
+         *
+         * @param keyStoreFilePath Path to key store file.
+         */
+        public void setKeyStoreFilePath(String keyStoreFilePath) {
+            A.notNull(keyStoreFilePath, "keyStoreFilePath");
+
+            this.keyStoreFilePath = keyStoreFilePath;
         }
     }
 
-    /** {@inheritDoc} */
-    @Override public String toString() {
-        return getClass().getSimpleName() + parameters();
+    public static KeyStore loadKeyStoreFromFile(String keyStoreType, String storeFilePath, char[] keyStorePwd)
+        throws SSLException {
+        try {
+            KeyStore keyStore = KeyStore.getInstance(keyStoreType);
+
+            try (InputStream input = new FileInputStream(storeFilePath)) {
+
+                keyStore.load(input, keyStorePwd);
+
+                return keyStore;
+            }
+        } catch (GeneralSecurityException e) {
+            throw new SSLException("Failed to initialize key store (security exception occurred) [type=" +
+                keyStoreType + ", keyStorePath=" + storeFilePath + ']', e);
+        } catch (FileNotFoundException e) {
+            throw new SSLException("Failed to initialize key store (key store file was not found): [path=" +
+                storeFilePath + ", msg=" + e.getMessage() + ']');
+        } catch (IOException e) {
+            throw new SSLException("Failed to initialize key store (I/O error occurred): " + storeFilePath, e);
+        }
+    }
+
+    public static class FileBasedTrustManagersFactory extends AbstractTrustManagersFactory {
+        /** Trust store type. */
+        protected String trustStoreType = DFLT_STORE_TYPE;
+
+        /** Path to trust store.*/
+        protected String trustStoreFilePath;
+
+        /** Trust store password */
+        protected char[] trustStorePwd;
+
+        @Override
+        protected KeyStore loadKeystore() throws SSLException {
+            return loadKeyStoreFromFile(getTrustStoreType(), getTrustStoreFilePath(), getTrustStorePassword());
+        }
+
+        /**
+         * Gets trust store type used for context creation.
+         *
+         * @return trust store type.
+         */
+        public String getTrustStoreType() {
+            return trustStoreType;
+        }
+
+        /**
+         * Sets trust store type used in context initialization. If not provided, {@link #DFLT_STORE_TYPE} will
+         * be used.
+         *
+         * @param trustStoreType Trust store type.
+         */
+        public void setTrustStoreType(String trustStoreType) {
+            A.notNull(trustStoreType, "trustStoreType");
+
+            this.trustStoreType = trustStoreType;
+        }
+
+        /**
+         * Gets path to the trust store file.
+         *
+         * @return Path to the trust store file.
+         */
+        public String getTrustStoreFilePath() {
+            return trustStoreFilePath;
+        }
+
+        /**
+         * Sets path to the trust store file. This is an optional parameter,
+         * however one of the {@code setTrustStoreFilePath(String)}, {@link #setTrustManagers(TrustManager[])}
+         * properties must be set.
+         *
+         * @param trustStoreFilePath Path to the trust store file.
+         */
+        public void setTrustStoreFilePath(String trustStoreFilePath) {
+            this.trustStoreFilePath = trustStoreFilePath;
+        }
+
+        /**
+         * Gets trust store password.
+         *
+         * @return Trust store password.
+         */
+        public char[] getTrustStorePassword() {
+            return trustStorePwd;
+        }
+
+        /**
+         * Sets trust store password.
+         *
+         * @param trustStorePwd Trust store password.
+         */
+        public void setTrustStorePassword(char[] trustStorePwd) {
+            this.trustStorePwd = trustStorePwd;
+        }
     }
 }

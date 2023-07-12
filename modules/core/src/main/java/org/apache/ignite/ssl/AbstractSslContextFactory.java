@@ -17,8 +17,16 @@
 
 package org.apache.ignite.ssl;
 
+import javax.cache.configuration.Factory;
+import javax.net.ssl.KeyManager;
+import javax.net.ssl.KeyManagerFactory;
+import javax.net.ssl.SSLContext;
+import javax.net.ssl.SSLException;
+import javax.net.ssl.SSLParameters;
+import javax.net.ssl.TrustManager;
+import javax.net.ssl.TrustManagerFactory;
+import javax.net.ssl.X509TrustManager;
 import java.io.FileInputStream;
-import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStream;
 import java.security.GeneralSecurityException;
@@ -28,14 +36,6 @@ import java.security.NoSuchAlgorithmException;
 import java.security.cert.CertificateException;
 import java.security.cert.X509Certificate;
 import java.util.concurrent.atomic.AtomicReference;
-import javax.cache.configuration.Factory;
-import javax.net.ssl.KeyManager;
-import javax.net.ssl.SSLContext;
-import javax.net.ssl.SSLException;
-import javax.net.ssl.SSLParameters;
-import javax.net.ssl.TrustManager;
-import javax.net.ssl.TrustManagerFactory;
-import javax.net.ssl.X509TrustManager;
 import org.apache.ignite.IgniteException;
 import org.apache.ignite.internal.util.typedef.internal.A;
 
@@ -59,15 +59,6 @@ public abstract class AbstractSslContextFactory implements Factory<SSLContext> {
     /** Key manager algorithm. */
     protected String keyAlgorithm = DFLT_KEY_ALGORITHM;
 
-    /** Trust store type. */
-    protected String trustStoreType = DFLT_STORE_TYPE;
-
-    /** Path to trust store. */
-    protected String trustStoreFilePath;
-
-    /** Trust store password */
-    protected char[] trustStorePwd;
-
     /** Trust managers. */
     protected TrustManager[] trustMgrs;
 
@@ -80,25 +71,13 @@ public abstract class AbstractSslContextFactory implements Factory<SSLContext> {
     /** Cached instance of an {@link SSLContext}. */
     protected final AtomicReference<SSLContext> sslCtx = new AtomicReference<>();
 
-    /**
-     * Gets trust store type used for context creation.
-     *
-     * @return trust store type.
-     */
-    public String getTrustStoreType() {
-        return trustStoreType;
-    }
+    protected final KeyManagersFactory keyManagersFactory;
+    protected final TrustManagersFactory trustManagersFactory;
 
-    /**
-     * Sets trust store type used in context initialization. If not provided, {@link #DFLT_STORE_TYPE} will
-     * be used.
-     *
-     * @param trustStoreType Trust store type.
-     */
-    public void setTrustStoreType(String trustStoreType) {
-        A.notNull(trustStoreType, "trustStoreType");
-
-        this.trustStoreType = trustStoreType;
+    /** */
+    public AbstractSslContextFactory(KeyManagersFactory keyManagersFactory, TrustManagersFactory trustManagersFactory) {
+        this.keyManagersFactory = keyManagersFactory;
+        this.trustManagersFactory = trustManagersFactory;
     }
 
     /**
@@ -142,43 +121,6 @@ public abstract class AbstractSslContextFactory implements Factory<SSLContext> {
         this.keyAlgorithm = keyAlgorithm;
     }
 
-    /**
-     * Gets path to the trust store file.
-     *
-     * @return Path to the trust store file.
-     */
-    public String getTrustStoreFilePath() {
-        return trustStoreFilePath;
-    }
-
-    /**
-     * Sets path to the trust store file. This is an optional parameter,
-     * however one of the {@code setTrustStoreFilePath(String)}, {@link #setTrustManagers(TrustManager[])}
-     * properties must be set.
-     *
-     * @param trustStoreFilePath Path to the trust store file.
-     */
-    public void setTrustStoreFilePath(String trustStoreFilePath) {
-        this.trustStoreFilePath = trustStoreFilePath;
-    }
-
-    /**
-     * Gets trust store password.
-     *
-     * @return Trust store password.
-     */
-    public char[] getTrustStorePassword() {
-        return trustStorePwd;
-    }
-
-    /**
-     * Sets trust store password.
-     *
-     * @param trustStorePwd Trust store password.
-     */
-    public void setTrustStorePassword(char[] trustStorePwd) {
-        this.trustStorePwd = trustStorePwd;
-    }
 
     /**
      * Gets pre-configured trust managers.
@@ -244,12 +186,12 @@ public abstract class AbstractSslContextFactory implements Factory<SSLContext> {
     private SSLContext createSslContext() throws SSLException {
         checkParameters();
 
-        KeyManager[] keyMgrs = createKeyManagers();
+        KeyManager[] keyMgrs = keyManagersFactory.create(keyAlgorithm) ;
 
         TrustManager[] trustMgrs = this.trustMgrs;
 
         if (trustMgrs == null)
-            trustMgrs = createTrustManagers();
+            trustMgrs = trustManagersFactory.create(keyAlgorithm);
 
         try {
             SSLContext ctx = SSLContext.getInstance(proto);
@@ -282,35 +224,6 @@ public abstract class AbstractSslContextFactory implements Factory<SSLContext> {
     protected abstract void checkParameters() throws SSLException;
 
     /**
-     * @return Created Key Managers.
-     * @throws SSLException If Key Managers could not be created.
-     */
-    protected abstract KeyManager[] createKeyManagers() throws SSLException;
-
-    /**
-     * @return Created Trust Managers.
-     * @throws SSLException If Trust Managers could not be created.
-     */
-    private TrustManager[] createTrustManagers() throws SSLException {
-        try {
-            TrustManagerFactory trustMgrFactory = TrustManagerFactory.getInstance(keyAlgorithm);
-
-            KeyStore trustStore = loadKeyStore(trustStoreType, trustStoreFilePath, trustStorePwd);
-
-            trustMgrFactory.init(trustStore);
-
-            return trustMgrFactory.getTrustManagers();
-        }
-        catch (NoSuchAlgorithmException e) {
-            throw new SSLException("Unsupported key algorithm: " + keyAlgorithm, e);
-        }
-        catch (GeneralSecurityException e) {
-            throw new SSLException("Failed to initialize Trust Manager (security exception occurred) [type=" +
-                trustStoreType + ", trustStorePath=" + trustStoreFilePath + ']', e);
-        }
-    }
-
-    /**
      * @param param Value.
      * @param name Name.
      * @throws SSLException If {@code null}.
@@ -328,42 +241,9 @@ public abstract class AbstractSslContextFactory implements Factory<SSLContext> {
      * @return Opened input stream.
      * @throws IOException If stream could not be opened.
      */
+    @Deprecated
     protected InputStream openFileInputStream(String filePath) throws IOException {
         return new FileInputStream(filePath);
-    }
-
-    /**
-     * Loads key store with configured parameters.
-     *
-     * @param keyStoreType Type of key store.
-     * @param storeFilePath Path to key store file.
-     * @param keyStorePwd Store password.
-     * @return Initialized key store.
-     * @throws SSLException If key store could not be initialized.
-     */
-    protected KeyStore loadKeyStore(String keyStoreType, String storeFilePath, char[] keyStorePwd)
-        throws SSLException {
-        try {
-            KeyStore keyStore = KeyStore.getInstance(keyStoreType);
-
-            try (InputStream input = openFileInputStream(storeFilePath)) {
-
-                keyStore.load(input, keyStorePwd);
-
-                return keyStore;
-            }
-        }
-        catch (GeneralSecurityException e) {
-            throw new SSLException("Failed to initialize key store (security exception occurred) [type=" +
-                keyStoreType + ", keyStorePath=" + storeFilePath + ']', e);
-        }
-        catch (FileNotFoundException e) {
-            throw new SSLException("Failed to initialize key store (key store file was not found): [path=" +
-                storeFilePath + ", msg=" + e.getMessage() + ']');
-        }
-        catch (IOException e) {
-            throw new SSLException("Failed to initialize key store (I/O error occurred): " + storeFilePath, e);
-        }
     }
 
     /**
@@ -408,5 +288,86 @@ public abstract class AbstractSslContextFactory implements Factory<SSLContext> {
         }
 
         return ctx;
+    }
+
+    public interface TrustManagersFactory {
+        TrustManager[] create(String keyAlgorithm) throws SSLException;
+    }
+
+    public interface KeyManagersFactory {
+        KeyManager[] create(String keyAlgorithm) throws SSLException;
+    }
+
+    /** */
+    public abstract static class AbstractTrustManagersFactory implements TrustManagersFactory {
+        @Override
+        public TrustManager[] create(String keyAlgorithm) throws SSLException {
+            try {
+                TrustManagerFactory trustMgrFactory = TrustManagerFactory.getInstance(keyAlgorithm);
+
+                KeyStore trustStore = loadKeystore();
+
+                trustMgrFactory.init(trustStore);
+
+                return trustMgrFactory.getTrustManagers();
+            }
+            catch (NoSuchAlgorithmException e) {
+                throw new SSLException("Unsupported key algorithm: " + keyAlgorithm, e);
+            }
+            catch (GeneralSecurityException e) {
+                throw new SSLException("Failed to initialize Trust Manager (security exception occurred) " +
+                    "[factory=" + this + ']', e);
+            }
+        }
+
+        protected abstract KeyStore loadKeystore() throws SSLException;
+    }
+
+    /** */
+    public abstract static class AbstractKeyManagersFactory implements KeyManagersFactory {
+        /** Key store password */
+        protected char[] keyStorePwd;
+
+        @Override
+        public KeyManager[] create(String keyAlgorithm) throws SSLException {
+            try {
+                KeyManagerFactory keyMgrFactory = KeyManagerFactory.getInstance(keyAlgorithm);
+
+                KeyStore keyStore = loadKeystore();
+
+                keyMgrFactory.init(keyStore, keyStorePwd);
+
+                return keyMgrFactory.getKeyManagers();
+            }
+            catch (NoSuchAlgorithmException e) {
+                throw new SSLException("Unsupported key algorithm: " + keyAlgorithm, e);
+            }
+            catch (GeneralSecurityException e) {
+                throw new SSLException("Failed to initialize Key Manager (security exception occurred) " +
+                    "[factory=" + this + ']', e);
+            }
+        }
+
+        /**
+         * Gets key store password.
+         *
+         * @return Key store password.
+         */
+        public char[] getKeyStorePassword() {
+            return keyStorePwd;
+        }
+
+        /**
+         * Sets key store password.
+         *
+         * @param keyStorePwd Key store password.
+         */
+        public void setKeyStorePassword(char[] keyStorePwd) {
+            A.notNull(keyStorePwd, "keyStorePwd");
+
+            this.keyStorePwd = keyStorePwd;
+        }
+
+        protected abstract KeyStore loadKeystore() throws SSLException;
     }
 }
